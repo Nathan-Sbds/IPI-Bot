@@ -309,27 +309,38 @@ async def delete_channel(ctx, nom_channel : str, nom_categorie : str):
 
 
 
-@tree.command(name = "transferer_cat", description = "Transfert a category to another role")
+@tree.command(name = "transferer_categorie", description = "Transferer une catégorie à un autre rôle")
 @commands.has_permissions(manage_messages=True)
-@app_commands.describe(new_categorie_name="Actual name of the category you want to transfert", old_categorie_name="New name of the category you want to transfert",new_role="Role to add permissions to",old_role="Role used to get permissions ",new_title="name to be replace", old_title="name to replace the old one")
-async def renommer_channels(ctx, old_categorie_name:str, new_categorie_name:str, old_title:str, new_title:str, old_role : discord.Role, new_role : discord.Role):
+@app_commands.describe(nouveau_nom_categorie="Nom actuel de la catégorie a transferer", ancien_nom_categorie="Nouveau nom a donner a la categorie",nouveau_role="Nouveau role pouvant avoir acces a la categorie",ancien_role="Role ayant actuellement l'acces a la categorie",nouveau_nom="Chaine de caractere servant a remplacer l'ancienne dans le nom des channels", ancien_nom="Chaine de caractere devant etre remplacer dans le nom des channels")
+async def transfert_category(ctx, ancien_nom_categorie:str, nouveau_nom_categorie:str, ancien_nom:str, nouveau_nom:str, ancien_role : discord.Role, nouveau_role : discord.Role):
 
     await ctx.response.send_message(content="Loading ...", ephemeral=True)
 
     try:
-        name_cat = f" {old_categorie_name.upper()} "
+        name_cat = f" {ancien_nom_categorie.upper()} "
         while len(name_cat) <= 27:
 
             name_cat = f"={name_cat}="
 
         category = discord.utils.get(ctx.guild.categories, id=(discord.utils.get(ctx.guild.categories, name=name_cat.upper()).id))
         
-        name_cat = f" {new_categorie_name} "
+        name_cat = f" {nouveau_nom_categorie} "
         while len(name_cat) <= 27:
 
             name_cat = f"={name_cat.upper()}="
 
         await category.edit(name=name_cat.upper())
+
+        source_permissions = category.overwrites[ancien_role]
+        target_permissions = {}
+
+        for permission, value in source_permissions:
+            target_permissions[permission] = value
+
+        new_overwrite = discord.PermissionOverwrite(**target_permissions)
+        await category.set_permissions(target=nouveau_role, overwrite=new_overwrite)
+
+        await category.set_permissions(target=ancien_role, overwrite=None)
 
         if category is None:
             await ctx.edit_original_response(content="La catégorie spécifiée n'existe pas.")
@@ -339,32 +350,33 @@ async def renommer_channels(ctx, old_categorie_name:str, new_categorie_name:str,
             if isinstance(channel, (discord.TextChannel, discord.VoiceChannel)):
                 overwrites = channel.overwrites
                 
-                new_name = channel.name.replace(old_title.lower().replace(' ','-'), new_title.lower().replace(' ','-'))
+                new_name = channel.name.replace(ancien_nom.lower().replace(' ','-'), nouveau_nom.lower().replace(' ','-'))
                 await channel.edit(name=new_name)
 
-                new_title,old_title = new_title.upper(),old_title.upper()
+                nouveau_nom,ancien_nom = nouveau_nom.upper(),ancien_nom.upper()
 
-                if new_role is None:
+                if nouveau_role is None:
                     return
                 
-                if old_role is None:
+                if ancien_role is None:
                     return
 
-                if old_role in overwrites:
+                if ancien_role in overwrites:
                     
-                    source_permissions = channel.overwrites[old_role]
+                    source_permissions = channel.overwrites[ancien_role]
                     target_permissions = {}
 
                     for permission, value in source_permissions:
                         target_permissions[permission] = value
 
                     new_overwrite = discord.PermissionOverwrite(**target_permissions)
-                    await channel.set_permissions(target=new_role, overwrite=new_overwrite)
+                    await channel.set_permissions(target=nouveau_role, overwrite=new_overwrite)
 
-                    await channel.set_permissions(target=old_role, overwrite=None)
+                    await channel.set_permissions(target=ancien_role, overwrite=None)
 
-        await ctx.edit_original_response(content=f'La catégorie {old_categorie_name} a bien été transferer du rôle {old_role.name} au role {new_role.name}')
+        await ctx.edit_original_response(content=f'La catégorie {ancien_nom_categorie} a bien été transferer du rôle {ancien_role.name} au role {nouveau_role.name}')
 
-    except:
+    except Exception as e:
         await ctx.edit_original_response(content=f'Une erreur est survenue, veuillez verifier que tous les paramètres sont correctes puis rééssayez. Si le problème persiste veuillez contacter Nathan SABOT DRESSY')
+        print(e)
 client.run(jsonObject["DISCORD_TOKEN"])
