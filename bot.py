@@ -12,6 +12,7 @@ with open("data.json") as jsonFile:
 
 @client.event
 async def on_ready():
+    await client.change_presence(status=discord.Status.online, activity=discord.Game("Réfléchis fortement"))
     await tree.sync()
     print("Ready!")
 
@@ -87,7 +88,7 @@ async def assign_role(ctx, fichier: discord.Attachment, role : discord.Role, sup
 
         else:
 
-            await ctx.edit_original_response(content=(f'Person(s) not found in the file : {not_found}'))
+            await ctx.edit_original_response(content=(f'Assign role to : {NewMenberTxt}\n\nPerson(s) not found in the file : {not_found}'))
 
     except Exception as e:
 
@@ -305,7 +306,65 @@ async def delete_channel(ctx, nom_channel : str, nom_categorie : str):
 
         print(e)
         await ctx.edit_original_response(content=(f"Channel {nom_channel.lower()} doesn't exist in category {name_cat.upper()}"))
-    
 
 
+
+@tree.command(name = "transferer_cat", description = "Transfert a category to another role")
+@commands.has_permissions(manage_messages=True)
+@app_commands.describe(new_categorie_name="Actual name of the category you want to transfert", old_categorie_name="New name of the category you want to transfert",new_role="Role to add permissions to",old_role="Role used to get permissions ",new_title="name to be replace", old_title="name to replace the old one")
+async def renommer_channels(ctx, old_categorie_name:str, new_categorie_name:str, old_title:str, new_title:str, old_role : discord.Role, new_role : discord.Role):
+
+    await ctx.response.send_message(content="Loading ...", ephemeral=True)
+
+    try:
+        name_cat = f" {old_categorie_name.upper()} "
+        while len(name_cat) <= 27:
+
+            name_cat = f"={name_cat}="
+
+        category = discord.utils.get(ctx.guild.categories, id=(discord.utils.get(ctx.guild.categories, name=name_cat.upper()).id))
+        
+        name_cat = f" {new_categorie_name} "
+        while len(name_cat) <= 27:
+
+            name_cat = f"={name_cat.upper()}="
+
+        await category.edit(name=name_cat.upper())
+
+        if category is None:
+            await ctx.edit_original_response(content="La catégorie spécifiée n'existe pas.")
+            return
+        
+        for channel in category.channels:
+            if isinstance(channel, (discord.TextChannel, discord.VoiceChannel)):
+                overwrites = channel.overwrites
+                
+                new_name = channel.name.replace(old_title.lower().replace(' ','-'), new_title.lower().replace(' ','-'))
+                await channel.edit(name=new_name)
+
+                new_title,old_title = new_title.upper(),old_title.upper()
+
+                if new_role is None:
+                    return
+                
+                if old_role is None:
+                    return
+
+                if old_role in overwrites:
+                    
+                    source_permissions = channel.overwrites[old_role]
+                    target_permissions = {}
+
+                    for permission, value in source_permissions:
+                        target_permissions[permission] = value
+
+                    new_overwrite = discord.PermissionOverwrite(**target_permissions)
+                    await channel.set_permissions(target=new_role, overwrite=new_overwrite)
+
+                    await channel.set_permissions(target=old_role, overwrite=None)
+
+        await ctx.edit_original_response(content=f'La catégorie {old_categorie_name} a bien été transferer du rôle {old_role.name} au role {new_role.name}')
+
+    except:
+        await ctx.edit_original_response(content=f'Une erreur est survenue, veuillez verifier que tous les paramètres sont correctes puis rééssayez. Si le problème persiste veuillez contacter Nathan SABOT DRESSY')
 client.run(jsonObject["DISCORD_TOKEN"])

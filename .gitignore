@@ -1,3 +1,5 @@
-
+/date.json
 /test.csv
 /test1.csv
+.gitignore
+data.json
