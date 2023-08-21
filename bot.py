@@ -96,9 +96,9 @@ async def assign_role(ctx, fichier: discord.Attachment, role : discord.Role, sup
         await ctx.edit_original_response(content=("File not readable (.csv)"))
 
 
-@tree.command(name = "transferer_role", description = ".csv file reader")
+@tree.command(name = "transferer_role", description = "Give a role to every person who have another one")
 @commands.has_permissions(manage_roles=True)
-@app_commands.describe(ancien_role="Person who have this role will be given the new one", nouveau_role="Role to assign", supprimer="Do you want to delete the persons who have the role at the moment ? (yes /no)")
+@app_commands.describe(ancien_role="Person who have this role will be given the new one", nouveau_role="Role to assign", supprimer="Do you want to delete the actual role / old role ? (yes /no)")
 async def transfert_role(ctx, ancien_role : discord.Role, nouveau_role : discord.Role,supprimer : bool):
 
     await ctx.response.send_message(content="Loading ...", ephemeral=True)
@@ -379,4 +379,25 @@ async def transfert_category(ctx, ancien_nom_categorie:str, nouveau_nom_categori
     except Exception as e:
         await ctx.edit_original_response(content=f'Une erreur est survenue, veuillez verifier que tous les paramètres sont correctes puis rééssayez. Si le problème persiste veuillez contacter Nathan SABOT DRESSY')
         print(e)
+
+@tree.command(name = "print_categories", description = "Affiche le nom de categorie")
+@commands.has_permissions(manage_messages=True)
+async def categories(ctx):
+    await ctx.response.send_message(content="Loading ...", ephemeral=True)
+    guild = ctx.guild
+    category_names = [category.name for category in guild.categories]
+    
+    if category_names:
+        await ctx.channel.send(content=f"Catégories du serveur:")
+        for category in guild.categories:
+            name_cat = f" {category.name.replace(' =','').replace('= ','').replace('=','')} "
+            while len(name_cat) <= 27:
+                name_cat = f"={name_cat}="
+
+            category_list = (name_cat)
+            await ctx.channel.send(content=f"{category_list}")
+        else:
+            await ctx.edit_original_response(content="Le serveur ne possède pas de catégories.")
+
+
 client.run(jsonObject["DISCORD_TOKEN"])
