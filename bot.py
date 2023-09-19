@@ -12,17 +12,17 @@ with open("data.json") as jsonFile:
 
 @client.event
 async def on_ready():
-    await client.change_presence(status=discord.Status.online, activity=discord.Game("Réfléchis fortement"))
+    await client.change_presence(status=discord.Status.online, activity=discord.Game("Gerer les choses..."))
     await tree.sync()
     print("Ready!")
 
 
-@tree.command(name = "assigner_role", description = "Assign the role given to all the persons in the .csv file")
-@commands.has_permissions(manage_roles=True)
-@app_commands.describe(fichier="File to use for reading", role="Role to assign to the persons in the .csv file", supprimer="Do you want to delete the persons who have the role at the moment ?")
+@tree.command(name = "assigner_role", description = "Donne le role ciblé a toutes les personnes dans le fichier .csv")
+@commands.has_permissions(administrator=True)
+@app_commands.describe(fichier="Fichier contenant les nom et prenom dans deux colonnes séparées", role="Role a donner aux personnes presentes dans le fichier", supprimer="Faut-il supprimer les personnes ayant le role actuellement ?")
 async def assign_role(ctx, fichier: discord.Attachment, role : discord.Role, supprimer : bool):
 
-    await ctx.response.send_message(content="Loading ...", ephemeral=True)
+    await ctx.response.send_message(content="J'y travaille...", ephemeral=True)
     
     if supprimer==True:
 
@@ -84,24 +84,24 @@ async def assign_role(ctx, fichier: discord.Attachment, role : discord.Role, sup
 
         if supprimer==True:
 
-            await ctx.edit_original_response(content=(f'Removed role to : {OldMemberTxt}\n\nAssign role to : {NewMenberTxt}\n\nPerson(s) not found in the file : {not_found}'))
+            await ctx.edit_original_response(content=(f'Role supprimé à : {OldMemberTxt}\n\nRole donné à : {NewMenberTxt}\n\nPersonnes non trouvée(s) : {not_found}'))
 
         else:
 
-            await ctx.edit_original_response(content=(f'Assign role to : {NewMenberTxt}\n\nPerson(s) not found in the file : {not_found}'))
+            await ctx.edit_original_response(content=(f'Role donné à : {NewMenberTxt}\n\nPersonnes non trouvée(s) : {not_found}'))
 
     except Exception as e:
 
         print(e)
-        await ctx.edit_original_response(content=("File not readable (.csv)"))
+        await ctx.edit_original_response(content=("Fichier illisible (.csv)"))
 
 
-@tree.command(name = "transferer_role", description = "Give a role to every person who have another one")
-@commands.has_permissions(manage_roles=True)
-@app_commands.describe(ancien_role="Person who have this role will be given the new one", nouveau_role="Role to assign", supprimer="Do you want to delete the actual role / old role ? (yes /no)")
+@tree.command(name = "transferer_role", description = "Transfere un role a toutes les personnes ayant un autre role")
+@commands.has_permissions(administrator=True)
+@app_commands.describe(ancien_role="Les personnes ayant ce role vont recevoir le nouveau", nouveau_role="Role a donner", supprimer="Faut-il supprimer le role actuel utilisé pour transferer ? (oui /non)")
 async def transfert_role(ctx, ancien_role : discord.Role, nouveau_role : discord.Role,supprimer : bool):
 
-    await ctx.response.send_message(content="Loading ...", ephemeral=True)
+    await ctx.response.send_message(content="J'y travaille...", ephemeral=True)
 
     OldMemberID = [m.id for m in ancien_role.members]
     OldMember = [m.display_name for m in ancien_role.members]
@@ -120,22 +120,22 @@ async def transfert_role(ctx, ancien_role : discord.Role, nouveau_role : discord
     NewMenberTxt = ', '.join([m.display_name for m in nouveau_role.members])
     if supprimer == True:
 
-        await ctx.edit_original_response(content=(f'Removed role for : {OldMemberTxt}\n\nAssign the new role for : {NewMenberTxt}'))
+        await ctx.edit_original_response(content=(f'Role supprimer à : {OldMemberTxt}\n\nRole donné à : {NewMenberTxt}'))
 
     else:
 
-        await ctx.edit_original_response(content=(f'Assign the new role for : {NewMenberTxt}'))
+        await ctx.edit_original_response(content=(f'Role donné à : {NewMenberTxt}'))
 
 
-@tree.command(name = "creer_categorie", description = "Create the basic category with the channels and permissions")
-@commands.has_permissions(manage_messages=True)
-@app_commands.describe(nom_categorie="Name of the category you want to create", role="Role you want to give acces to this category", role2="Role you also want to give acces to this category")
+@tree.command(name = "creer_categorie", description = "Créer une catégorie basique avec les channels, et permissions")
+@commands.has_permissions(administrator=True)
+@app_commands.describe(nom_categorie="Nom de la catégorie à créer (sans les =)", role="Role ayant acces a cette catégorie", role2="Second role ayant acces a la catégorie (optionnel)")
 async def create_category(ctx, nom_categorie : str, role : discord.Role, role2 : discord.Role = None):
 
     server = ctx.guild
     name_cat = f" {nom_categorie} "
 
-    await ctx.response.send_message(content="Loading ...", ephemeral=True)
+    await ctx.response.send_message(content="J'y travaille...", ephemeral=True)
 
     while len(name_cat) <= 27:
 
@@ -170,19 +170,19 @@ async def create_category(ctx, nom_categorie : str, role : discord.Role, role2 :
     await server.create_voice_channel(name="général-vocal",category=category_object)
     if role2==None:
 
-        await ctx.edit_original_response(content=(f'Category {name_cat.upper()} created for {role} !'),)
+        await ctx.edit_original_response(content=(f'Catégorie {name_cat.upper()} créée pour {role} !'),)
 
     else:
 
-        await ctx.edit_original_response(content=(f'Category {name_cat.upper()} created for {role} and {role2} !'))
+        await ctx.edit_original_response(content=(f'Catégorie {name_cat.upper()} créee pour {role} et {role2} !'))
 
 
-@tree.command(name = "supprimer_categorie", description = "Delete the category and all the channels inside")
-@commands.has_permissions(manage_messages=True)
-@app_commands.describe(nom_categorie="Name of the category you want to erase")
+@tree.command(name = "supprimer_categorie", description = "Supprime la catégorie ainsi que les channels qu'elle contient")
+@commands.has_permissions(administrator=True)
+@app_commands.describe(nom_categorie="Nom de la catégorie a supprimer (sans les =)")
 async def delete_category(ctx, nom_categorie : str):
 
-    await ctx.response.send_message(content="Loading ...", ephemeral=True)
+    await ctx.response.send_message(content="J'y travaille...", ephemeral=True)
 
     name_cat = f" {nom_categorie} "
     while len(name_cat) <= 27:
@@ -208,7 +208,7 @@ async def delete_category(ctx, nom_categorie : str):
     
         if category_object is None:
 
-            await ctx.edit_original_response(content=(f"Category {name_cat.upper()} doesn't exist !"))
+            await ctx.edit_original_response(content=(f"La catégorie {name_cat.upper()} n'existe pas !"))
 
         else:
 
@@ -224,19 +224,19 @@ async def delete_category(ctx, nom_categorie : str):
                 
                 print(e)
                 
-            await ctx.edit_original_response(content=(f'Category {name_cat.upper()} deleted !'))
+            await ctx.edit_original_response(content=(f'Catégorie {name_cat.upper()} supprimée !'))
         
     except AttributeError:
 
-        await ctx.edit_original_response(content=(f"Category {name_cat.upper()} doesn't exist !"))
+        await ctx.edit_original_response(content=(f"La catégorie {name_cat.upper()} n'existe pas !"))
     
 
-@tree.command(name = "creer_channel", description = "Create a new channel inside a category and set the permissions")
-@commands.has_permissions(manage_messages=True)
-@app_commands.describe(nom_channel="Name of the channel you want to create", nom_categorie="Category you want to the channel to be in")
+@tree.command(name = "creer_channel", description = "Créer un channel dans une catégroei et lui donne les bonnes permissions !")
+@commands.has_permissions(manage_channels=True)
+@app_commands.describe(nom_channel="Nom du channel a créer", nom_categorie="Catégorie où créer le channel")
 async def create_channel(ctx, nom_channel : str, nom_categorie : str):
 
-    await ctx.response.send_message(content="Loading ...", ephemeral=True)
+    await ctx.response.send_message(content="J'y travaille...", ephemeral=True)
 
     server = ctx.guild
     tmp=""
@@ -263,15 +263,15 @@ async def create_channel(ctx, nom_channel : str, nom_categorie : str):
     pedago = discord.utils.get(ctx.guild.roles,name="Team Pedago IPI")
     await discord.utils.get(ctx.guild.channels, name=nom_channel.lower()).set_permissions(target=pedago, read_messages=True, send_messages=True, connect=True, speak=True)
 
-    await ctx.edit_original_response(content=(f'Channel {nom_channel.lower()} created in category {name_cat.upper()} !'))
+    await ctx.edit_original_response(content=(f'Channel {nom_channel.lower()} créé dans la catégorie {name_cat.upper()} !'))
 
 
-@tree.command(name = "supprimer_channel", description = "Delete a channel inside a category")
-@commands.has_permissions(manage_messages=True)
-@app_commands.describe(nom_channel="Name of the channel you want to erase", nom_categorie="Category where the channel is")
+@tree.command(name = "delete_channel", description = "Supprime un channel dans une catégorie")
+@commands.has_permissions(administrator=True)
+@app_commands.describe(nom_channel="Nom du channel a supprimer", nom_categorie="Catégorie dans lequel il est situé")
 async def delete_channel(ctx, nom_channel : str, nom_categorie : str):
 
-    await ctx.response.send_message(content="Loading ...", ephemeral=True)
+    await ctx.response.send_message(content="J'y travaille...", ephemeral=True)
 
     name_cat = f" {nom_categorie} "
     while len(name_cat) <= 27:
@@ -284,7 +284,7 @@ async def delete_channel(ctx, nom_channel : str, nom_categorie : str):
     
         if category_object is None:
 
-            await ctx.edit_original_response(content=(f"Category {name_cat.upper()} doesn't exist !"))
+            await ctx.edit_original_response(content=(f"La catégorie {name_cat.upper()} n'existe pas !"))
 
         else:
 
@@ -300,21 +300,21 @@ async def delete_channel(ctx, nom_channel : str, nom_categorie : str):
 
                 print(e)
                 
-            await ctx.edit_original_response(content=(f'Channel {nom_channel.lower()} deleted in category {name_cat.upper()} !'))
+            await ctx.edit_original_response(content=(f'Channel {nom_channel.lower()} supprimé dans la catégorie {name_cat.upper()} !'))
         
     except AttributeError as e:
 
         print(e)
-        await ctx.edit_original_response(content=(f"Channel {nom_channel.lower()} doesn't exist in category {name_cat.upper()}"))
+        await ctx.edit_original_response(content=(f"Channel {nom_channel.lower()} n'éxiste pas dans la catégorie {name_cat.upper()}"))
 
 
 
 @tree.command(name = "transferer_categorie", description = "Transferer une catégorie à un autre rôle")
-@commands.has_permissions(manage_messages=True)
+@commands.has_permissions(administrator=True)
 @app_commands.describe(nouveau_nom_categorie="Nom actuel de la catégorie a transferer", ancien_nom_categorie="Nouveau nom a donner a la categorie",nouveau_role="Nouveau role pouvant avoir acces a la categorie",ancien_role="Role ayant actuellement l'acces a la categorie",nouveau_nom="Chaine de caractere servant a remplacer l'ancienne dans le nom des channels", ancien_nom="Chaine de caractere devant etre remplacer dans le nom des channels")
 async def transfert_category(ctx, ancien_nom_categorie:str, nouveau_nom_categorie:str, ancien_nom:str, nouveau_nom:str, ancien_role : discord.Role, nouveau_role : discord.Role):
 
-    await ctx.response.send_message(content="Loading ...", ephemeral=True)
+    await ctx.response.send_message(content="J'y travaille...", ephemeral=True)
 
     try:
         name_cat = f" {ancien_nom_categorie.upper()} "
@@ -381,9 +381,9 @@ async def transfert_category(ctx, ancien_nom_categorie:str, nouveau_nom_categori
         print(e)
 
 @tree.command(name = "print_categories", description = "Affiche le nom de categorie")
-@commands.has_permissions(manage_messages=True)
+@commands.has_permissions(administrator=True)
 async def categories(ctx):
-    await ctx.response.send_message(content="Loading ...", ephemeral=True)
+    await ctx.response.send_message(content="J'y travaille...", ephemeral=True)
     guild = ctx.guild
     category_names = [category.name for category in guild.categories]
     
