@@ -40,3 +40,4 @@ Traceback (most recent call last):
 discord.app_commands.errors.NoPrivateMessage: This command cannot be used in direct messages.
 2023-09-24 01:43:13 [INFO]: logging in using static token
 2023-09-24 01:43:14 [INFO]: Shard ID None has connected to Gateway (Session ID: dbda4cd9142dd1dd1605061c226b553b).
+2023-09-24 01:46:29 [INFO]: Shard ID None session has been invalidated.
