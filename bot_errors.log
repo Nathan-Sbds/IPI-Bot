@@ -1,0 +1,42 @@
+2023-09-24 01:33:08 [INFO]: logging in using static token
+2023-09-24 01:33:09 [INFO]: Shard ID None has connected to Gateway (Session ID: 6dec40a8379b4590fd0bc6eaddf53bab).
+2023-09-24 01:34:07 [ERROR]: Ignoring exception in command 'agenda'
+Traceback (most recent call last):
+  File "C:\Users\natha\AppData\Local\Programs\Python\Python311\Lib\site-packages\discord\app_commands\tree.py", line 1248, in _call
+    await command._invoke_with_namespace(interaction, namespace)
+  File "C:\Users\natha\AppData\Local\Programs\Python\Python311\Lib\site-packages\discord\app_commands\commands.py", line 863, in _invoke_with_namespace
+    if not await self._check_can_run(interaction):
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\natha\AppData\Local\Programs\Python\Python311\Lib\site-packages\discord\app_commands\commands.py", line 1001, in _check_can_run
+    return await async_all(f(interaction) for f in predicates)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\natha\AppData\Local\Programs\Python\Python311\Lib\site-packages\discord\utils.py", line 698, in async_all
+    for elem in gen:
+  File "C:\Users\natha\AppData\Local\Programs\Python\Python311\Lib\site-packages\discord\app_commands\commands.py", line 1001, in <genexpr>
+    return await async_all(f(interaction) for f in predicates)
+                           ^^^^^^^^^^^^^^
+  File "C:\Users\natha\AppData\Local\Programs\Python\Python311\Lib\site-packages\discord\app_commands\checks.py", line 275, in predicate
+    raise NoPrivateMessage()
+discord.app_commands.errors.NoPrivateMessage: This command cannot be used in direct messages.
+2023-09-24 01:40:44 [INFO]: logging in using static token
+2023-09-24 01:40:45 [INFO]: Shard ID None has connected to Gateway (Session ID: a26f3b142f40bd326f754835446b45d9).
+2023-09-24 01:40:57 [ERROR]: Ignoring exception in command 'agenda'
+Traceback (most recent call last):
+  File "C:\Users\natha\AppData\Local\Programs\Python\Python311\Lib\site-packages\discord\app_commands\tree.py", line 1248, in _call
+    await command._invoke_with_namespace(interaction, namespace)
+  File "C:\Users\natha\AppData\Local\Programs\Python\Python311\Lib\site-packages\discord\app_commands\commands.py", line 863, in _invoke_with_namespace
+    if not await self._check_can_run(interaction):
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\natha\AppData\Local\Programs\Python\Python311\Lib\site-packages\discord\app_commands\commands.py", line 1001, in _check_can_run
+    return await async_all(f(interaction) for f in predicates)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\natha\AppData\Local\Programs\Python\Python311\Lib\site-packages\discord\utils.py", line 698, in async_all
+    for elem in gen:
+  File "C:\Users\natha\AppData\Local\Programs\Python\Python311\Lib\site-packages\discord\app_commands\commands.py", line 1001, in <genexpr>
+    return await async_all(f(interaction) for f in predicates)
+                           ^^^^^^^^^^^^^^
+  File "C:\Users\natha\AppData\Local\Programs\Python\Python311\Lib\site-packages\discord\app_commands\checks.py", line 275, in predicate
+    raise NoPrivateMessage()
+discord.app_commands.errors.NoPrivateMessage: This command cannot be used in direct messages.
+2023-09-24 01:43:13 [INFO]: logging in using static token
+2023-09-24 01:43:14 [INFO]: Shard ID None has connected to Gateway (Session ID: dbda4cd9142dd1dd1605061c226b553b).
