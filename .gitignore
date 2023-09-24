@@ -1,8 +1,6 @@
 /date.json
 /test.csv
 /test1.csv
-login_promo.json
-data.json
-bot_errors.log
+*.json
 *.png
 *.log
