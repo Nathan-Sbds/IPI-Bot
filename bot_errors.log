@@ -42,3 +42,5 @@ discord.app_commands.errors.NoPrivateMessage: This command cannot be used in dir
 2023-09-24 01:43:14 [INFO]: Shard ID None has connected to Gateway (Session ID: dbda4cd9142dd1dd1605061c226b553b).
 2023-09-24 01:46:29 [INFO]: Shard ID None session has been invalidated.
 2023-09-24 02:07:35 [INFO]: logging in using static token
+2023-09-24 02:08:12 [INFO]: logging in using static token
+2023-09-24 02:08:13 [INFO]: Shard ID None has connected to Gateway (Session ID: 3c08cfbd11eeec86e46366c32de4baa9).
