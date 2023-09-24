@@ -4,3 +4,5 @@
 login_promo.json
 data.json
 bot_errors.log
+*.png
+*.log
