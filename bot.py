@@ -477,7 +477,7 @@ async def agenda(ctx, date:str = ""):
                     date = datetime.strptime(date, "%d/%m/%Y").date().strftime("%m/%d/%Y")
                 except ValueError:
                     await ctx.edit_original_response(content="Le format de la date fournit n'est pas valide la date doit etre le la forme jj/mm/aaaa")
-            dateFormat = datetime.strptime(date, "%m/%d/%Y").date().strftime("%m-%d-%Y")
+            
             max_attempts = 3
 
             for attempt in range(max_attempts):
@@ -517,13 +517,13 @@ async def agenda(ctx, date:str = ""):
                     driver.quit()
                 else:
                     # Si aucune erreur n'est détectée, enregistrez la capture d'écran et quittez le script
-                    driver.save_screenshot(f"Timeable{dateFormat}.png")
+                    driver.save_screenshot(f"Timeable.png")
                     driver.quit()
                     break
-            file = discord.File(f"Timeable{dateFormat}.png")
-            if os.path.exists(f"Timeable{dateFormat}.png"):
+            file = discord.File(f"Timeable.png")
+            if os.path.exists(f"Timeable.png"):
                 try:
-                    os.remove(f"Timeable{dateFormat}.png")
+                    os.remove(f"Timeable.png")
                 except:
                     pass
             
@@ -652,7 +652,7 @@ async def agenda_eleve(ctx, membre: discord.Member ,date:str = ""):
                     date = datetime.strptime(date, "%d/%m/%Y").date().strftime("%m/%d/%Y")
                 except ValueError:
                     await ctx.edit_original_response(content="Le format de la date fournit n'est pas valide la date doit etre le la forme jj/mm/aaaa")
-            dateFormat = datetime.strptime(date, "%m/%d/%Y").date().strftime("%m-%d-%Y")
+            
             max_attempts = 3
 
             for attempt in range(max_attempts):
@@ -692,14 +692,14 @@ async def agenda_eleve(ctx, membre: discord.Member ,date:str = ""):
                     driver.quit()
                 else:
                     # Si aucune erreur n'est détectée, enregistrez la capture d'écran et quittez le script
-                    driver.save_screenshot(f"Timeable{dateFormat}.png")
+                    driver.save_screenshot(f"Timeable.png")
                     driver.quit()
                     break
 
-            file = discord.File(f"Timeable{dateFormat}.png")
-            if os.path.exists(f"Timeable{dateFormat}.png"):
+            file = discord.File(f"Timeable.png")
+            if os.path.exists(f"Timeable.png"):
                 try:
-                    os.remove(f"Timeable{dateFormat}.png")
+                    os.remove(f"Timeable.png")
                 except:
                     pass
             
@@ -714,5 +714,102 @@ async def agenda_eleve(ctx, membre: discord.Member ,date:str = ""):
         # Modifier la réponse originale pour indiquer qu'une erreur s'est produite
         await ctx.edit_original_response(content="Une erreur s'est produite lors de l'exécution de la commande.")
         return
-        
+@tree.command(name="agenda_modifier", description="Modifier les identifiants enregistrés")
+@app_commands.describe(identifiant="Nouvel identifiant de connection MonCampus", mdp="Nouveau mot de passe de connection MonCampus")
+@app_commands.checks.has_any_role('Team Pedago IPI', 'Team Entreprise IPI', 'Team Communication IPI', 'Directrice IPI', 'Admin Serveur', 'Apprenant IPI')
+async def agenda_modifier(ctx, identifiant: str, mdp: str):
+    try:
+        await ctx.response.send_message(content="J'y travaille...", ephemeral=True)
+
+        with open("login_promo.json", 'r') as jsonFile:
+            LoginPromoJson = json.load(jsonFile)
+
+        updated_entries = 0  # Compteur pour le nombre d'entrées mises à jour
+        updated_nicknames = []
+
+        refId = LoginPromoJson[str(ctx.user.id)]["login"]
+
+        for user_key, user_data in LoginPromoJson.items():
+            if user_data["login"] == refId:
+                user_data['login'] = identifiant
+                user_data["mdp"] = mdp
+                updated_entries += 1
+
+                member = ctx.guild.get_member(int(user_key))
+                if member:
+                    updated_nicknames.append(member.display_name)
+
+        if updated_entries > 0:
+            with open('login_promo.json', 'w') as file:
+                json.dump(LoginPromoJson, file, indent=4)
+
+            if updated_nicknames:
+                nickname_list = ", ".join(updated_nicknames)
+                await ctx.edit_original_response(content=f"Le mot de passe de {updated_entries} entrées avec l'identifiant '{identifiant}' a été mis à jour avec succès. Les nicknames mis à jour sont : {nickname_list}")
+            else:
+                await ctx.edit_original_response(content=f"Le mot de passe de {updated_entries} entrées avec l'identifiant '{identifiant}' a été mis à jour avec succès, mais aucun utilisateur avec un nickname trouvé.")
+
+        else:
+            await ctx.edit_original_response(content="Aucun identifiant enregistré trouvé pour votre utilisateur.")
+
+    except Exception as e:
+        # Enregistrer l'erreur dans le fichier de journal
+        logging.error(f'Error in command "modifier_entree": {e}', exc_info=True)
+
+        # Modifier la réponse originale pour indiquer qu'une erreur s'est produite
+        await ctx.edit_original_response(content="Une erreur s'est produite lors de l'exécution de la commande.")
+
+
+@tree.command(name="agenda_desenregistrer", description="Supprimer toutes les entrées avec votre identifiant")
+@app_commands.describe()
+@app_commands.checks.has_any_role('Team Pedago IPI', 'Team Entreprise IPI', 'Team Communication IPI', 'Directrice IPI', 'Admin Serveur', 'Apprenant IPI')
+async def desenregistrer(ctx):
+    try:
+        await ctx.response.send_message(content="J'y travaille...", ephemeral=True)
+
+        with open("login_promo.json", 'r') as jsonFile:
+            LoginPromoJson = json.load(jsonFile)
+
+        user_id = str(ctx.user.id)
+        entries_deleted = 0  # Compteur pour le nombre d'entrées supprimées
+
+        # Créez une copie de clés pour éviter de supprimer des clés pendant la boucle
+        keys_to_delete = []
+
+        refId = LoginPromoJson[str(ctx.user.id)]["login"]
+        is_author = LoginPromoJson[user_id]['extend'] == False
+
+        if is_author:
+            for user_key, user_data in LoginPromoJson.items():
+                if user_data["login"] == refId:
+                    keys_to_delete.append(user_key)
+                    entries_deleted += 1
+
+            # Supprimez les clés correspondantes
+            for key in keys_to_delete:
+                del LoginPromoJson[key]
+
+            if entries_deleted > 0:
+                with open('login_promo.json', 'w') as file:
+                    json.dump(LoginPromoJson, file, indent=4)
+
+                await ctx.edit_original_response(content=f"Toutes les entrées avec l'identifiant '{refId}' ont été supprimées avec succès")
+
+            else:
+                await ctx.edit_original_response(content=f"Aucune entrée avec l'identifiant '{refId}' n'a été trouvée.")
+        else:
+            del LoginPromoJson[user_id]
+            with open('login_promo.json', 'w') as file:
+                json.dump(LoginPromoJson, file, indent=4)
+            await ctx.edit_original_response(content=f"Tes identifiants ont bien été supprimées")
+
+    except Exception as e:
+        # Enregistrer l'erreur dans le fichier de journal
+        logging.error(f'Error in command "desenregistrer": {e}', exc_info=True)
+
+        # Modifier la réponse originale pour indiquer qu'une erreur s'est produite
+        await ctx.edit_original_response(content="Une erreur s'est produite lors de l'exécution de la commande.")
+
+
+
 client.run(DataJson["DISCORD_TOKEN"])
