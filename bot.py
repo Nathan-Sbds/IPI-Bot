@@ -1,5 +1,4 @@
 import discord,re,json,urllib.request,os,logging,cryptocode
-from discord.ext import commands
 from discord import app_commands
 from selenium import webdriver
 from selenium.webdriver.common.keys import Keys
@@ -23,6 +22,18 @@ async def on_ready():
     await client.change_presence(status=discord.Status.online, activity=discord.Game("Gerer les choses..."))
     await tree.sync()
     print("Ready!")
+
+
+@tree.command(name = "ping", description = "Donne la latence du bot !")
+async def ping(ctx):
+    latency = round(client.latency * 1000)
+    await ctx.response.send_message(content=f'Pong! Latence: {latency}ms', ephemeral=True)
+
+
+@ping.error
+async def ping_error(ctx, error):
+    if isinstance(error, discord.app_commands.errors.MissingPermissions): 
+        await ctx.response.send_message(content="Tu n'as pas la permission d'effectuer cette commande !", ephemeral=True)
 
 
 @tree.command(name = "assigner_role", description = "Donne le role ciblé a toutes les personnes dans le fichier .csv")
@@ -96,29 +107,32 @@ async def assign_role(ctx, fichier: discord.Attachment, supprimer : bool, role :
                     pass
 
             not_found = ', '.join(not_found)
-            NewMenberTxt = ', '.join([m.display_name for m in role.members])
+            NewMenberTxt = ', '.join([f"<@{m.id}>" for m in role.members])
 
             if supprimer==True:
 
                 await ctx.edit_original_response(content=(f'Role supprimé à : {OldMemberTxt}\n\nRole donné à : {NewMenberTxt}\n\nPersonnes non trouvée(s) : {not_found}'))
-
+                user = client.get_user(ctx.user.id)
+                await user.send(content=(f'Role supprimé à : {OldMemberTxt}\n\nRole donné à : {NewMenberTxt}\n\nPersonnes non trouvée(s) : {not_found}'))
             else:
 
                 await ctx.edit_original_response(content=(f'Role donné à : {NewMenberTxt}\n\nPersonnes non trouvée(s) : {not_found}'))
+                user = client.get_user(ctx.user.id)
+                await user.send(content=(f'Role donné à : {NewMenberTxt}\n\nPersonnes non trouvée(s) : {not_found}'))
 
         except Exception as e:
 
             print(e)
             await ctx.edit_original_response(content=("Fichier illisible (.csv)"))
     except Exception as e:
-        logging.error(f'Error in command "erreur_commande": {e}', exc_info=True)
+        logging.error(f'Error in command "assign_role": {e}', exc_info=True)
         await ctx.edit_original_response(content="Une erreur s'est produite lors de l'exécution de la commande.")
         return
 
 @assign_role.error
-async def ma_commande_error(ctx, error):
+async def assign_role_error(ctx, error):
     if isinstance(error, discord.app_commands.errors.MissingPermissions): 
-        await ctx. response.send_message(content="Tu n'as pas la permission d'effectuer cette commande !", ephemeral=True)
+        await ctx.response.send_message(content="Tu n'as pas la permission d'effectuer cette commande !", ephemeral=True)
 
 
 @tree.command(name = "transferer_role", description = "Transfere un role a toutes les personnes ayant un autre role")
@@ -129,8 +143,11 @@ async def transfert_role(ctx, ancien_role : discord.Role, nouveau_role : discord
         await ctx.response.send_message(content="J'y travaille...", ephemeral=True)
 
         OldMemberID = [m.id for m in ancien_role.members]
-        OldMember = [m.display_name for m in ancien_role.members]
-        OldMemberTxt = ', '.join(OldMember)
+        OldMember = [f"<@{m.id}>" for m in ancien_role.members]
+        OldMemberTxt = [m.display_name for m in ancien_role.members]
+        NewRoleMember = [m.id for m in nouveau_role.members]
+        OldMemberTxtMention = ', '.join(OldMember)
+        OldMemberTxtNoMention = ', '.join(OldMemberTxt)
 
         if supprimer==True:
 
@@ -142,24 +159,61 @@ async def transfert_role(ctx, ancien_role : discord.Role, nouveau_role : discord
 
                 await ctx.guild.get_member(member).add_roles(nouveau_role)
 
-        NewMenberTxt = ', '.join([m.display_name for m in nouveau_role.members])
+        NewMenberTxtMention = ', '.join([f"<@{m.id}>" for m in nouveau_role.members if m.id not in NewRoleMember])
+        NewMenberTxt = ', '.join([m.display_name for m in nouveau_role.members if m.id not in NewRoleMember])
         if supprimer == True:
 
-            await ctx.edit_original_response(content=(f'Role supprimer à : {OldMemberTxt}\n\nRole donné à : {NewMenberTxt}'))
+            await ctx.edit_original_response(content=(f'Role supprimer à : {OldMemberTxtMention}\n\nRole donné à : {NewMenberTxtMention}'))
+            user = client.get_user(ctx.user.id)
+            await user.send(content=(f'Role supprimer à : {OldMemberTxtNoMention}\n\nRole donné à : {NewMenberTxt}'))
 
         else:
 
-            await ctx.edit_original_response(content=(f'Role donné à : {NewMenberTxt}'))
+            await ctx.edit_original_response(content=(f'Role donné à : {NewMenberTxtMention}'))
+            user = client.get_user(ctx.user.id)
+            await user.send(content=(f'Role donné à : {NewMenberTxt}'))
     except Exception as e:
-        logging.error(f'Error in command "erreur_commande": {e}', exc_info=True)
+        logging.error(f'Error in command "transfert_role": {e}', exc_info=True)
         
         await ctx.edit_original_response(content="Une erreur s'est produite lors de l'exécution de la commande.")
         return
 
 @transfert_role.error
-async def ma_commande_error(ctx, error):
+async def transfert_role_error(ctx, error):
     if isinstance(error, discord.app_commands.errors.MissingPermissions): 
-        await ctx. response.send_message(content="Tu n'as pas la permission d'effectuer cette commande !", ephemeral=True)
+        await ctx.response.send_message(content="Tu n'as pas la permission d'effectuer cette commande !", ephemeral=True)
+
+
+@tree.command(name = "supprimer_role", description = "Supprime le role a toutes les personnes ayant ce role")
+@app_commands.checks.has_permissions(administrator=True)
+@app_commands.describe(role="Role a retirere aux personnes", role2="Retirer le role seulement aux personnes ayant ce role")
+async def supprime_role(ctx, role : discord.Role, role2 : discord.Role = None):
+    try:
+        await ctx.response.send_message(content="J'y travaille...", ephemeral=True)
+        if role2 != None:
+            MembersMention = ', '.join([f"<@{m.id}>" for m in role.members if m in role2.members])
+            Members = ', '.join([m.display_name for m in role.members if m in role2.members])
+            [await m.remove_roles(role) for m in role.members if m in role2.members]
+        else:
+            MembersMention = ', '.join([f"<@{m.id}>" for m in role.members])
+            Members = ', '.join([m.display_name for m in role.members])
+            [await m.remove_roles(role) for m in role.members]
+
+        await ctx.edit_original_response(content=(f'Role supprimé pour : {MembersMention}'))
+        user = client.get_user(ctx.user.id)
+        await user.send(content=(f'Role supprimé pour : {Members}'))
+
+    except Exception as e:
+        logging.error(f'Error in command "supprime_role": {e}', exc_info=True)
+        
+        await ctx.edit_original_response(content="Une erreur s'est produite lors de l'exécution de la commande.")
+        return
+
+
+@supprime_role.error
+async def supprime_role_error(ctx, error):
+    if isinstance(error, discord.app_commands.errors.MissingPermissions): 
+        await ctx.response.send_message(content="Tu n'as pas la permission d'effectuer cette commande !", ephemeral=True)
 
 
 @tree.command(name = "creer_categorie", description = "Créer une catégorie basique avec les channels, et permissions")
@@ -198,9 +252,21 @@ async def create_category(ctx, nom_categorie : str, role : discord.Role, role2 :
             await category_object.set_permissions(ctx.guild.default_role, read_messages=False, connect=False)
 
             await server.create_text_channel(name="général-"+nom_categorie.lower(),category=category_object)
+            
+            pedago = discord.utils.get(ctx.guild.roles,name="Team Pedago IPI")
+            communication = discord.utils.get(ctx.guild.roles,name="Team Communication IPI")
+            entreprise = discord.utils.get(ctx.guild.roles,name="Team Entreprise IPI")
+            directrice = discord.utils.get(ctx.guild.roles,name="Directrice IPI")
+            
+            await server.create_text_channel(name="général-"+nom_categorie.lower(),category=category_object)
+            await discord.utils.get(ctx.guild.channels, name="général-"+nom_categorie.lower()).set_permissions(target=pedago, read_messages=True, send_messages=True, connect=True, speak=True)
+            await discord.utils.get(ctx.guild.channels, name="général-"+nom_categorie.lower()).set_permissions(target=communication, read_messages=True, send_messages=True, connect=True, speak=True)
+            await discord.utils.get(ctx.guild.channels, name="général-"+nom_categorie.lower()).set_permissions(target=entreprise, read_messages=True, send_messages=True, connect=True, speak=True)
+            await discord.utils.get(ctx.guild.channels, name="général-"+nom_categorie.lower()).set_permissions(target=directrice, read_messages=True, send_messages=True, connect=True, speak=True)    
+            
+            
             await server.create_text_channel(name="pédago-"+nom_categorie.lower(),category=category_object)
 
-            pedago = discord.utils.get(ctx.guild.roles,name="Team Pedago IPI")
             await discord.utils.get(ctx.guild.channels, name="pédago-"+nom_categorie.lower()).set_permissions(target=pedago, read_messages=True, send_messages=True, connect=True, speak=True)
 
             await server.create_text_channel(name="only-you",category=category_object)
@@ -213,15 +279,15 @@ async def create_category(ctx, nom_categorie : str, role : discord.Role, role2 :
 
                 await ctx.edit_original_response(content=(f'Catégorie {name_cat.upper()} créee pour {role} et {role2} !'))
     except Exception as e:
-        logging.error(f'Error in command "erreur_commande": {e}', exc_info=True)
+        logging.error(f'Error in command "create_category": {e}', exc_info=True)
         
         await ctx.edit_original_response(content="Une erreur s'est produite lors de l'exécution de la commande.")
         return
 
 @create_category.error
-async def ma_commande_error(ctx, error):
+async def create_category_error(ctx, error):
     if isinstance(error, discord.app_commands.errors.MissingPermissions): 
-        await ctx. response.send_message(content="Tu n'as pas la permission d'effectuer cette commande !", ephemeral=True)
+        await ctx.response.send_message(content="Tu n'as pas la permission d'effectuer cette commande !", ephemeral=True)
 
 
 
@@ -243,7 +309,6 @@ async def delete_category(ctx, nom_categorie : str):
         for category in ctx.guild.categories:
             if category.name == name_cat:
                 categories_with_name.append(category)
-        print(categories_with_name)
 
         if len(categories_with_name) > 1:
             await ctx.edit_original_response(content=(f"Il existe {len(categories_with_name)} catégories avec le nom {name_cat}. Merci de bien vouloir corriger cela !")) 
@@ -277,14 +342,14 @@ async def delete_category(ctx, nom_categorie : str):
 
                 await ctx.edit_original_response(content=(f"La catégorie {name_cat.upper()} n'existe pas !"))
     except Exception as e:
-        logging.error(f'Error in command "erreur_commande": {e}', exc_info=True)
+        logging.error(f'Error in command "delete_category": {e}', exc_info=True)
         await ctx.edit_original_response(content="Une erreur s'est produite lors de l'exécution de la commande.")
         return
 
 @delete_category.error
-async def ma_commande_error(ctx, error):
+async def delete_category_error(ctx, error):
     if isinstance(error, discord.app_commands.errors.MissingPermissions): 
-        await ctx. response.send_message(content="Tu n'as pas la permission d'effectuer cette commande !", ephemeral=True)
+        await ctx.response.send_message(content="Tu n'as pas la permission d'effectuer cette commande !", ephemeral=True)
 
 
 @tree.command(name = "creer_channel", description = "Créer un channel dans une catégroei et lui donne les bonnes permissions !")
@@ -320,7 +385,7 @@ async def create_channel(ctx, nom_channel : str, nom_categorie : str):
 
             await ctx.edit_original_response(content=(f'Channel {nom_channel.lower()} créé dans la catégorie {name_cat.upper()} !'))
     except Exception as e:
-        logging.error(f'Error in command "erreur_commande": {e}', exc_info=True)
+        logging.error(f'Error in command "create_channel": {e}', exc_info=True)
         
         await ctx.edit_original_response(content="Une erreur s'est produite lors de l'exécution de la commande.")
         return
@@ -329,10 +394,10 @@ async def create_channel(ctx, nom_channel : str, nom_categorie : str):
 @create_channel.error
 async def create_channel_error(ctx, error):
     if isinstance(error, discord.app_commands.errors.MissingPermissions): 
-        await ctx. response.send_message(content="Tu n'as pas la permission d'effectuer cette commande !", ephemeral=True)
+        await ctx.response.send_message(content="Tu n'as pas la permission d'effectuer cette commande !", ephemeral=True)
 
 
-@tree.command(name = "delete_channel", description = "Supprime un channel dans une catégorie")
+@tree.command(name = "supprimer_channel", description = "Supprime un channel dans une catégorie")
 @app_commands.checks.has_permissions(administrator=True)
 @app_commands.describe(nom_channel="Nom du channel a supprimer", nom_categorie="Catégorie dans lequel il est situé")
 async def delete_channel(ctx, nom_channel : str, nom_categorie : str):
@@ -382,15 +447,15 @@ async def delete_channel(ctx, nom_channel : str, nom_categorie : str):
                 print(e)
                 await ctx.edit_original_response(content=(f"Channel {nom_channel.lower()} n'éxiste pas dans la catégorie {name_cat.upper()}"))
     except Exception as e:
-        logging.error(f'Error in command "erreur_commande": {e}', exc_info=True)
+        logging.error(f'Error in command "delete_channel": {e}', exc_info=True)
         
         await ctx.edit_original_response(content="Une erreur s'est produite lors de l'exécution de la commande.")
         return
 
 @delete_channel.error
-async def ma_commande_error(ctx, error):
+async def delete_channel_error(ctx, error):
     if isinstance(error, discord.app_commands.errors.MissingPermissions): 
-        await ctx. response.send_message(content="Tu n'as pas la permission d'effectuer cette commande !", ephemeral=True)
+        await ctx.response.send_message(content="Tu n'as pas la permission d'effectuer cette commande !", ephemeral=True)
 
 
 @tree.command(name = "transferer_categorie", description = "Transferer une catégorie à un autre rôle")
@@ -473,15 +538,15 @@ async def transfert_category(ctx, ancien_nom_categorie:str, nouveau_nom_categori
                 await ctx.edit_original_response(content=f'Une erreur est survenue, veuillez verifier que tous les paramètres sont correctes puis rééssayez. Si le problème persiste veuillez contacter Nathan SABOT DRESSY')
                 print(e)
     except Exception as e:
-        logging.error(f'Error in command "erreur_commande": {e}', exc_info=True)
+        logging.error(f'Error in command "transfert_category": {e}', exc_info=True)
         
         await ctx.edit_original_response(content="Une erreur s'est produite lors de l'exécution de la commande.")
         return
 
 @transfert_category.error
-async def ma_commande_error(ctx, error):
+async def transfert_category_error(ctx, error):
     if isinstance(error, discord.app_commands.errors.MissingPermissions): 
-        await ctx. response.send_message(content="Tu n'as pas la permission d'effectuer cette commande !", ephemeral=True)
+        await ctx.response.send_message(content="Tu n'as pas la permission d'effectuer cette commande !", ephemeral=True)
 
 
 #@tree.command(name = "print_categories", description = "Affiche le nom de categorie")
@@ -569,12 +634,10 @@ async def agenda(ctx, date:str = ""):
                 url_to_wait_for = "https://ws-edt-igs.wigorservices.net/WebPsDyn.aspx"
                 wait.until(EC.url_contains(url_to_wait_for))
 
-                # Vérifiez si le texte "Server Error in '/' Application." est présent dans le HTML
                 if "Server Error in '/' Application." in driver.page_source:
                     print("Erreur détectée dans le HTML. Relance du script...")
                     driver.quit()
                 else:
-                    # Si aucune erreur n'est détectée, enregistrez la capture d'écran et quittez le script
                     driver.save_screenshot(f"Timeable.png")
                     driver.quit()
                     break
@@ -588,7 +651,7 @@ async def agenda(ctx, date:str = ""):
         else:
             await ctx.edit_original_response(content="Tu ne possède pas d'identifiants enregitrés, pour cela tu peux effectuer /agenda_enregitrer !")
     except Exception as e:
-        logging.error(f'Error in command "erreur_commande": {e}', exc_info=True)
+        logging.error(f'Error in command "agenda": {e}', exc_info=True)
         
         await ctx.edit_original_response(content="Une erreur s'est produite lors de l'exécution de la commande.")
         return
@@ -596,16 +659,16 @@ async def agenda(ctx, date:str = ""):
 @agenda.error
 async def agenda_error(ctx, error):
     if isinstance(error, discord.app_commands.errors.MissingPermissions): 
-        await ctx. response.send_message(content="Tu n'as pas la permission d'effectuer cette commande !", ephemeral=True)
+        await ctx.response.send_message(content="Tu n'as pas la permission d'effectuer cette commande !", ephemeral=True)
 
 
-@tree.command(name = "agenda_accorder_droit", description = "Donne le droit d'acceder a votre emploi du temps a la personne ciblée (de preference de votre promo)")
+@tree.command(name = "agenda_accorder_droit_membre", description = "Donne le droit d'acceder a votre emploi du temps a la personne ciblée (de preference de votre promo)")
 @app_commands.describe(membre="Membre a qui donner le droit")
 @app_commands.checks.has_any_role('Team Pedago IPI', 'Team Entreprise IPI', 'Team Communication IPI', 'Directrice IPI', 'Admin Serveur','Apprenant IPI')
-async def accorder_droit(ctx, membre: discord.Member):
+async def accorder_droit_membre(ctx, membre: discord.Member):
     try:
         await ctx.response.send_message(content="J'y travaille...", ephemeral=True)
-
+        
         with open("login_promo.json") as jsonFile:
             LoginPromoJson = json.load(jsonFile)
             jsonFile.close()
@@ -617,29 +680,107 @@ async def accorder_droit(ctx, membre: discord.Member):
 
                 with open('login_promo.json', 'w') as file:
                     json.dump(LoginPromoJson, file, indent=4)
-                await ctx.edit_original_response(content="Les accès a ton emploi du temps ont été accordé à " + membre.nick)
+                await ctx.edit_original_response(content=f"Les accès a ton emploi du temps ont été accordé à <@{membre.id}>")
             else:
-                await ctx.edit_original_response(content="Cette personne possède deja des identifiants")
+                await ctx.edit_original_response(content=f"<@{membre.id}> possède deja des identifiants")
         else:
             await ctx.edit_original_response(content="Vous ne posséder pas d'identifiants enregistrer identifiants")
 
         
     except Exception as e:
-        logging.error(f'Error in command "erreur_commande": {e}', exc_info=True)
+        logging.error(f'Error in command "accorder_droit_membre": {e}', exc_info=True)
         
         await ctx.edit_original_response(content="Une erreur s'est produite lors de l'exécution de la commande.")
         return
 
-@accorder_droit.error
-async def accorder_droit_error(ctx, error):
+@accorder_droit_membre.error
+async def accorder_droit_membre_error(ctx, error):
     if isinstance(error, discord.app_commands.errors.MissingPermissions): 
-        await ctx. response.send_message(content="Tu n'as pas la permission d'effectuer cette commande !", ephemeral=True)
+        await ctx.response.send_message(content="Tu n'as pas la permission d'effectuer cette commande !", ephemeral=True)
 
 
-@tree.command(name = "agenda_retirer_droit", description = "Retire le droit d'acceder a votre emploi du temps a la personne ciblée")
+@tree.command(name = "agenda_accorder_droit_role", description = "Donne le droit d'acceder a votre emploi du temps a toutes les personnes ayant le role ciblé")
+@app_commands.describe(role="Role a qui donner le droit")
+@app_commands.checks.has_any_role('Team Pedago IPI', 'Team Entreprise IPI', 'Team Communication IPI', 'Directrice IPI', 'Admin Serveur','Apprenant IPI')
+async def accorder_droit_role(ctx, role: discord.Role):
+    try:
+        await ctx.response.send_message(content="J'y travaille...", ephemeral=True)
+
+        roles_interdits = ["Admin Serveur", "Directrice IPI", "Team Communication IPI", "Team Entreprise IPI", "Team Pedago IPI", "Formateur", "League IPI", "YAGPDB.xyz", "IPI Bot", "Alumni", "Apprenant IPI", "Join League", "Aide Infra", "Aide Dev", "Citoyen", "Filière Dev", "Filière Infra", "Membre", "WHOOP"]
+
+        if role.name in roles_interdits or role not in ctx.user.roles:
+            await ctx.edit_original_response(content="Vous ne pouvez pas accorder ce droit à ce rôle.")
+            return
+        
+        with open("login_promo.json") as jsonFile:
+            LoginPromoJson = json.load(jsonFile)
+            jsonFile.close()
+
+        for membre in role.members:
+            if (str(membre.id) not in LoginPromoJson):
+                nouvelle_entree = {str(membre.id): {"login" : LoginPromoJson[str(ctx.user.id)]["login"] ,"mdp" : LoginPromoJson[str(ctx.user.id)]["mdp"], "extend": True}}
+
+                LoginPromoJson.update(nouvelle_entree)
+
+                with open('login_promo.json', 'w') as file:
+                    json.dump(LoginPromoJson, file, indent=4)
+                
+        await ctx.edit_original_response(content=f"Les accès a ton emploi du temps ont été accordés à toutes les personnes ayant le role {role.mention}")
+
+    except Exception as e:
+        logging.error(f'Error in command "accorder_droit_role": {e}', exc_info=True)
+        
+        await ctx.edit_original_response(content="Une erreur s'est produite lors de l'exécution de la commande.")
+        return
+
+@accorder_droit_role.error
+async def accorder_droit_role_error(ctx, error):
+    if isinstance(error, discord.app_commands.errors.MissingPermissions): 
+        await ctx.response.send_message(content="Tu n'as pas la permission d'effectuer cette commande !", ephemeral=True)
+
+
+@tree.command(name = "agenda_retirer_droit_role", description = "Retire le droit d'acceder a votre emploi du temps a toutes les personnes ayant le role ciblé")
+@app_commands.describe(role="Role a qui retirer le droit")
+@app_commands.checks.has_any_role('Team Pedago IPI', 'Team Entreprise IPI', 'Team Communication IPI', 'Directrice IPI', 'Admin Serveur','Apprenant IPI')
+async def retirer_droit_role(ctx, role: discord.Role):
+    roles_interdits = ["Admin Serveur", "Directrice IPI", "Team Communication IPI", "Team Entreprise IPI", "Team Pedago IPI", "Formateur", "League IPI", "YAGPDB.xyz", "IPI Bot", "Alumni", "Apprenant IPI", "Join League", "Aide Infra", "Aide Dev", "Citoyen", "Filière Dev", "Filière Infra", "Membre", "WHOOP"]
+    try:
+        if role.name in roles_interdits or role not in ctx.user.roles:
+            await ctx.edit_original_response(content="Vous ne pouvez pas retirer ce droit à ce role.")
+            return
+
+    
+        await ctx.response.send_message(content="J'y travaille...", ephemeral=True)
+
+        with open("login_promo.json") as jsonFile:
+            LoginPromoJson = json.load(jsonFile)
+            jsonFile.close()
+
+        for membre in role.members:
+            if (str(membre.id) in LoginPromoJson) and (LoginPromoJson[str(ctx.user.id)]["extend"] == False) and (ctx.user.id != membre.id) and LoginPromoJson[str(ctx.user.id)]['login'] == LoginPromoJson[str(membre.id)]['login']:
+                del LoginPromoJson[str(membre.id)]
+
+                with open('login_promo.json', 'w') as file:
+                    json.dump(LoginPromoJson, file, indent=4)
+
+        await ctx.edit_original_response(content=f"Les accès a ton emploi du temps ont été retirer à toutes les personnes ayant le role {role.mention}")
+
+    except Exception as e:
+        logging.error(f'Error in command "retirer_droit_role": {e}', exc_info=True)
+        
+        await ctx.edit_original_response(content="Une erreur s'est produite lors de l'exécution de la commande.")
+        return
+
+@retirer_droit_role.error
+async def retirer_droit_role_error(ctx, error):
+    if isinstance(error, discord.app_commands.errors.MissingPermissions): 
+        await ctx.response.send_message(content="Tu n'as pas la permission d'effectuer cette commande !", ephemeral=True)
+
+
+@tree.command(name = "agenda_retirer_droit_membre", description = "Retire le droit d'acceder a votre emploi du temps a la personne ciblée")
 @app_commands.describe(membre="Membre a qui retirer le droit")
 @app_commands.checks.has_any_role('Team Pedago IPI', 'Team Entreprise IPI', 'Team Communication IPI', 'Directrice IPI', 'Admin Serveur','Apprenant IPI')
-async def retirer_droit(ctx, membre: discord.Member):
+async def retirer_droit_membre(ctx, membre: discord.Member):
     try:
         await ctx.response.send_message(content="J'y travaille...", ephemeral=True)
 
@@ -648,13 +789,13 @@ async def retirer_droit(ctx, membre: discord.Member):
             jsonFile.close()
         if (str(ctx.user.id) in LoginPromoJson):
             if (str(membre.id) in LoginPromoJson):
-                if (LoginPromoJson[str(ctx.user.id)]["extend"] == False) and LoginPromoJson[str(ctx.user.id)]['login'] == LoginPromoJson[str(membre.id)]['login'] :
+                if (LoginPromoJson[str(ctx.user.id)]["extend"] == False) and (ctx.user.id != membre.id) and LoginPromoJson[str(ctx.user.id)]['login'] == LoginPromoJson[str(membre.id)]['login'] :
 
                     del LoginPromoJson[str(membre.id)]
 
                     with open('login_promo.json', 'w') as file:
                         json.dump(LoginPromoJson, file, indent=4)
-                    await ctx.edit_original_response(content="Les accès a ton emploi du temps ont été retirer à " + membre.nick)
+                    await ctx.edit_original_response(content=f"Les accès a ton emploi du temps ont été retirer à <@{membre.id}>")
                 else:
                     await ctx.edit_original_response(content="Vous ne posseder pas le droit de retirer les permissions a cette personnes")
             else:
@@ -662,15 +803,49 @@ async def retirer_droit(ctx, membre: discord.Member):
         else:
             await ctx.edit_original_response(content="Vous ne posséder pas d'identifiants enregistrés identifiants")
     except Exception as e:
-        logging.error(f'Error in command "erreur_commande": {e}', exc_info=True)
+        logging.error(f'Error in command "retirer_droit_membre": {e}', exc_info=True)
         
         await ctx.edit_original_response(content="Une erreur s'est produite lors de l'exécution de la commande.")
         return
 
-@retirer_droit.error
-async def retirer_droit_error(ctx, error):
+@retirer_droit_membre.error
+async def retirer_droit_membre_error(ctx, error):
     if isinstance(error, discord.app_commands.errors.MissingPermissions): 
-        await ctx. response.send_message(content="Tu n'as pas la permission d'effectuer cette commande !", ephemeral=True)
+        await ctx.response.send_message(content="Tu n'as pas la permission d'effectuer cette commande !", ephemeral=True)
+
+
+@tree.command(name="agenda_voir_partage_droit", description="Voir les membres avec qui vous partagez votre agenda")
+@app_commands.checks.has_any_role('Team Pedago IPI', 'Team Entreprise IPI', 'Team Communication IPI', 'Directrice IPI', 'Admin Serveur', 'Apprenant IPI')
+async def voir_membres_droit(ctx):
+    try:
+        await ctx.response.send_message(content="J'y travaille...", ephemeral=True)
+        with open("login_promo.json") as jsonFile:
+            LoginPromoJson = json.load(jsonFile)
+        
+        user_login = LoginPromoJson.get(str(ctx.user.id), {}).get("login", None)
+        
+        if user_login:
+            matching_members = [member_id for member_id, member_data in LoginPromoJson.items()
+                if member_data.get("login") == user_login and member_data.get("extend", False)]
+            
+            if matching_members:
+                member_mentions = [f"<@{member_id}>" for member_id in matching_members]
+                await ctx.edit_original_response(content=f"Les membres avec qui vous partager votre agenda sont : {', '.join(member_mentions)}")
+            else:
+                await ctx.edit_original_response(content="Vous ne partagez actuellement pas votre agenda")
+        else:
+            await ctx.edit_original_response(content="Vous ne possédez pas d'identifiants enregistrés.")
+        
+    except Exception as e:
+        logging.error(f'Error in command "voir_membres_droit": {e}', exc_info=True)
+        await ctx.response.send_message(content="Une erreur s'est produite lors de l'exécution de la commande.", ephemeral=True)
+
+
+@voir_membres_droit.error
+async def voir_membres_droit_error(ctx, error):
+    if isinstance(error, discord.app_commands.errors.MissingPermissions): 
+        await ctx.response.send_message(content="Tu n'as pas la permission d'effectuer cette commande !", ephemeral=True)
+
 
 @tree.command(name = "agenda_enregitrer", description = "S'enregitrer pour avoir acces a son emploi du temps sur discord")
 @app_commands.describe(identifiant="Identifiant de connection MonCampus", mdp="Mot de passe de connection MonCampus")
@@ -694,7 +869,7 @@ async def enregitrer(ctx, identifiant: str, mdp : str):
         else:
             await ctx.edit_original_response(content="Vous posséder deja des identifiants enregistrés")
     except Exception as e:
-        logging.error(f'Error in command "erreur_commande": {e}', exc_info=True)
+        logging.error(f'Error in command "enregitrer": {e}', exc_info=True)
         
         await ctx.edit_original_response(content="Une erreur s'est produite lors de l'exécution de la commande.")
         return
@@ -702,7 +877,7 @@ async def enregitrer(ctx, identifiant: str, mdp : str):
 @enregitrer.error
 async def enregitrer_error(ctx, error):
     if isinstance(error, discord.app_commands.errors.MissingPermissions): 
-        await ctx. response.send_message(content="Tu n'as pas la permission d'effectuer cette commande !", ephemeral=True)
+        await ctx.response.send_message(content="Tu n'as pas la permission d'effectuer cette commande !", ephemeral=True)
 
 
 @tree.command(name = "agenda_eleve", description = "Affiche l'agenda pour la semaine")
@@ -758,12 +933,10 @@ async def agenda_eleve(ctx, membre: discord.Member ,date:str = ""):
                 url_to_wait_for = "https://ws-edt-igs.wigorservices.net/WebPsDyn.aspx"
                 wait.until(EC.url_contains(url_to_wait_for))
 
-                # Vérifiez si le texte "Server Error in '/' Application." est présent dans le HTML
                 if "Server Error in '/' Application." in driver.page_source:
                     print("Erreur détectée dans le HTML. Relance du script...")
                     driver.quit()
                 else:
-                    # Si aucune erreur n'est détectée, enregistrez la capture d'écran et quittez le script
                     driver.save_screenshot(f"Timeable.png")
                     driver.quit()
                     break
@@ -781,7 +954,7 @@ async def agenda_eleve(ctx, membre: discord.Member ,date:str = ""):
         else:
             await ctx.edit_original_response(content="Cette personne ne possède pas d'identifiants enregitrés !")
     except Exception as e:
-        logging.error(f'Error in command "erreur_commande": {e}', exc_info=True)
+        logging.error(f'Error in command "agenda_eleve": {e}', exc_info=True)
         
         await ctx.edit_original_response(content="Une erreur s'est produite lors de l'exécution de la commande.")
         return
@@ -790,7 +963,7 @@ async def agenda_eleve(ctx, membre: discord.Member ,date:str = ""):
 @agenda_eleve.error
 async def agenda_eleve_error(ctx, error):
     if isinstance(error, discord.app_commands.errors.MissingPermissions): 
-        await ctx. response.send_message(content="Tu n'as pas la permission d'effectuer cette commande !", ephemeral=True)
+        await ctx.response.send_message(content="Tu n'as pas la permission d'effectuer cette commande !", ephemeral=True)
 
 
 @tree.command(name="agenda_modifier", description="Modifier les identifiants enregistrés")
@@ -803,7 +976,7 @@ async def agenda_modifier(ctx, identifiant: str, mdp: str):
         with open("login_promo.json", 'r') as jsonFile:
             LoginPromoJson = json.load(jsonFile)
 
-        updated_entries = 0  # Compteur pour le nombre d'entrées mises à jour
+        updated_entries = 0
         updated_nicknames = []
 
         refId = LoginPromoJson[str(ctx.user.id)]["login"]
@@ -832,14 +1005,14 @@ async def agenda_modifier(ctx, identifiant: str, mdp: str):
             await ctx.edit_original_response(content="Aucun identifiant enregistré trouvé pour votre utilisateur.")
 
     except Exception as e:
-        logging.error(f'Error in command "modifier_entree": {e}', exc_info=True)
+        logging.error(f'Error in command "agenda_modifier": {e}', exc_info=True)
 
         await ctx.edit_original_response(content="Une erreur s'est produite lors de l'exécution de la commande.")
 
 @agenda_modifier.error
 async def agenda_modifier_error(ctx, error):
     if isinstance(error, discord.app_commands.errors.MissingPermissions): 
-        await ctx. response.send_message(content="Tu n'as pas la permission d'effectuer cette commande !", ephemeral=True)
+        await ctx.response.send_message(content="Tu n'as pas la permission d'effectuer cette commande !", ephemeral=True)
 
 
 @tree.command(name="agenda_desenregistrer", description="Supprimer toutes les entrées avec votre identifiant")
@@ -853,9 +1026,8 @@ async def desenregistrer(ctx):
             LoginPromoJson = json.load(jsonFile)
 
         user_id = str(ctx.user.id)
-        entries_deleted = 0  # Compteur pour le nombre d'entrées supprimées
+        entries_deleted = 0
 
-        # Créez une copie de clés pour éviter de supprimer des clés pendant la boucle
         keys_to_delete = []
 
         refId = LoginPromoJson[str(ctx.user.id)]["login"]
@@ -867,7 +1039,6 @@ async def desenregistrer(ctx):
                     keys_to_delete.append(user_key)
                     entries_deleted += 1
 
-            # Supprimez les clés correspondantes
             for key in keys_to_delete:
                 del LoginPromoJson[key]
 
@@ -875,10 +1046,10 @@ async def desenregistrer(ctx):
                 with open('login_promo.json', 'w') as file:
                     json.dump(LoginPromoJson, file, indent=4)
 
-                await ctx.edit_original_response(content=f"Toutes les entrées avec l'identifiant '{refId}' ont été supprimées avec succès")
+                await ctx.edit_original_response(content=f"Toutes les entrées avec l'identifiant '{cryptocode.decrypt(LoginPromoJson[str(ctx.user.id)]['login'], DataJson['CRYPT'])}' ont été supprimées avec succès")
 
             else:
-                await ctx.edit_original_response(content=f"Aucune entrée avec l'identifiant '{refId}' n'a été trouvée.")
+                await ctx.edit_original_response(content=f"Aucune entrée avec l'identifiant '{cryptocode.decrypt(LoginPromoJson[str(ctx.user.id)]['login'], DataJson['CRYPT'])}' n'a été trouvée.")
         else:
             del LoginPromoJson[user_id]
             with open('login_promo.json', 'w') as file:
@@ -893,7 +1064,7 @@ async def desenregistrer(ctx):
 @desenregistrer.error
 async def desenregistrer_error(ctx, error):
     if isinstance(error, discord.app_commands.errors.MissingPermissions): 
-        await ctx. response.send_message(content="Tu n'as pas la permission d'effectuer cette commande !", ephemeral=True)
+        await ctx.response.send_message(content="Tu n'as pas la permission d'effectuer cette commande !", ephemeral=True)
 
 
 client.run(DataJson["DISCORD_TOKEN"])
