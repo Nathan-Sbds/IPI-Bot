@@ -1,4 +1,4 @@
-import discord,re,json,urllib.request
+import discord,re,json,urllib.request,os,logging,cryptocode
 from discord.ext import commands
 from discord import app_commands
 from selenium import webdriver
@@ -8,7 +8,6 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.firefox.options import Options
 from datetime import datetime
-import os, logging
 
 logging.basicConfig(filename='bot_errors.log', level=logging.ERROR, format='%(asctime)s [%(levelname)s]: %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
 intents = discord.Intents().all()
@@ -27,9 +26,9 @@ async def on_ready():
 
 
 @tree.command(name = "assigner_role", description = "Donne le role ciblé a toutes les personnes dans le fichier .csv")
-@commands.has_permissions(administrator=True)
-@app_commands.describe(fichier="Fichier contenant les nom et prenom dans deux colonnes séparées", role="Role a donner aux personnes presentes dans le fichier", supprimer="Faut-il supprimer les personnes ayant le role actuellement ?")
-async def assign_role(ctx, fichier: discord.Attachment, role : discord.Role, supprimer : bool):
+@app_commands.checks.has_permissions(administrator=True)
+@app_commands.describe(fichier="Fichier contenant les nom et prenom dans deux colonnes séparées", supprimer="Faut-il supprimer les personnes ayant le role actuellement ?", role="Role a donner aux personnes presentes dans le fichier", role2="Second rôle a donner", role3="Second rôle a donner")
+async def assign_role(ctx, fichier: discord.Attachment, supprimer : bool, role : discord.Role, role2 : discord.Role = None, role3 : discord.Role = None):
     try:
         await ctx.response.send_message(content="J'y travaille...", ephemeral=True)
         
@@ -75,10 +74,18 @@ async def assign_role(ctx, fichier: discord.Attachment, role : discord.Role, sup
                         try:
 
                             await (ctx.guild.get_member(member_list[member_list.index((str(element_list[0]) + str(element_list[1])).replace(" ", "").lower())+1])).add_roles(role)
+                            if role2 != None:
+                                await (ctx.guild.get_member(member_list[member_list.index((str(element_list[0]) + str(element_list[1])).replace(" ", "").lower())+1])).add_roles(role2)
+                            if role3 != None:
+                                await (ctx.guild.get_member(member_list[member_list.index((str(element_list[0]) + str(element_list[1])).replace(" ", "").lower())+1])).add_roles(role3)
 
                         except:
 
                             await (ctx.guild.get_member(member_list[member_list.index((str(element_list[1]) + str(element_list[0])).replace(" ", "").lower())+1])).add_roles(role)
+                            if role2 != None:
+                                await (ctx.guild.get_member(member_list[member_list.index((str(element_list[1]) + str(element_list[0])).replace(" ", "").lower())+1])).add_roles(role2)
+                            if role3 != None:
+                                await (ctx.guild.get_member(member_list[member_list.index((str(element_list[1]) + str(element_list[0])).replace(" ", "").lower())+1])).add_roles(role3)
 
                     else:
 
@@ -105,12 +112,17 @@ async def assign_role(ctx, fichier: discord.Attachment, role : discord.Role, sup
             await ctx.edit_original_response(content=("Fichier illisible (.csv)"))
     except Exception as e:
         logging.error(f'Error in command "erreur_commande": {e}', exc_info=True)
-        
         await ctx.edit_original_response(content="Une erreur s'est produite lors de l'exécution de la commande.")
         return
 
+@assign_role.error
+async def ma_commande_error(ctx, error):
+    if isinstance(error, discord.app_commands.errors.MissingPermissions): 
+        await ctx. response.send_message(content="Tu n'as pas la permission d'effectuer cette commande !", ephemeral=True)
+
+
 @tree.command(name = "transferer_role", description = "Transfere un role a toutes les personnes ayant un autre role")
-@commands.has_permissions(administrator=True)
+@app_commands.checks.has_permissions(administrator=True)
 @app_commands.describe(ancien_role="Les personnes ayant ce role vont recevoir le nouveau", nouveau_role="Role a donner", supprimer="Faut-il supprimer le role actuel utilisé pour transferer ? (oui /non)")
 async def transfert_role(ctx, ancien_role : discord.Role, nouveau_role : discord.Role,supprimer : bool):
     try:
@@ -139,20 +151,24 @@ async def transfert_role(ctx, ancien_role : discord.Role, nouveau_role : discord
 
             await ctx.edit_original_response(content=(f'Role donné à : {NewMenberTxt}'))
     except Exception as e:
-        # Enregistrer l'erreur dans le fichier de journal
         logging.error(f'Error in command "erreur_commande": {e}', exc_info=True)
         
-        # Modifier la réponse originale pour indiquer qu'une erreur s'est produite
         await ctx.edit_original_response(content="Une erreur s'est produite lors de l'exécution de la commande.")
         return
 
+@transfert_role.error
+async def ma_commande_error(ctx, error):
+    if isinstance(error, discord.app_commands.errors.MissingPermissions): 
+        await ctx. response.send_message(content="Tu n'as pas la permission d'effectuer cette commande !", ephemeral=True)
+
+
 @tree.command(name = "creer_categorie", description = "Créer une catégorie basique avec les channels, et permissions")
-@commands.has_permissions(administrator=True)
+@app_commands.checks.has_permissions(administrator=True)
 @app_commands.describe(nom_categorie="Nom de la catégorie à créer (sans les =)", role="Role ayant acces a cette catégorie", role2="Second role ayant acces a la catégorie (optionnel)")
 async def create_category(ctx, nom_categorie : str, role : discord.Role, role2 : discord.Role = None):
     try:
         server = ctx.guild
-        name_cat = f" {nom_categorie} "
+        name_cat = f" {nom_categorie.upper()} "
 
         await ctx.response.send_message(content="J'y travaille...", ephemeral=True)
 
@@ -160,302 +176,343 @@ async def create_category(ctx, nom_categorie : str, role : discord.Role, role2 :
 
             name_cat = f"={name_cat}="
 
-        tmp=""
-        for letter in nom_categorie:
-            if letter != " ":
-                tmp+=letter
-            else:
-                tmp+="-"
+        categories_with_name = []
+        for category in ctx.guild.categories:
+            if category.name == name_cat:
+                categories_with_name.append(category)
 
-        nom_categorie = tmp
-        await server.create_category(name=name_cat.upper())
-
-        category_object = discord.utils.get(ctx.guild.categories, name=name_cat.upper())
-        await category_object.set_permissions(target=role, read_messages=True, send_messages=True, connect=True, speak=True)
-
-        if role2 != None:
-
-            await category_object.set_permissions(target=role2, read_messages=True, send_messages=True, connect=True, speak=True)
-
-        await category_object.set_permissions(ctx.guild.default_role, read_messages=False, connect=False)
-
-        await server.create_text_channel(name="général-"+nom_categorie.lower(),category=category_object)
-        await server.create_text_channel(name="pédago-"+nom_categorie.lower(),category=category_object)
-
-        pedago = discord.utils.get(ctx.guild.roles,name="Team Pedago IPI")
-        await discord.utils.get(ctx.guild.channels, name="pédago-"+nom_categorie.lower()).set_permissions(target=pedago, read_messages=True, send_messages=True, connect=True, speak=True)
-
-        await server.create_text_channel(name="only-you",category=category_object)
-        await server.create_voice_channel(name="général-vocal",category=category_object)
-        if role2==None:
-
-            await ctx.edit_original_response(content=(f'Catégorie {name_cat.upper()} créée pour {role} !'),)
+        if len(categories_with_name) > 1:
+            await ctx.edit_original_response(content=(f"Il existe {len(categories_with_name)} catégories avec le nom {name_cat}. Merci de bien vouloir corriger cela !")) 
 
         else:
+            nom_categorie = nom_categorie.replace(' ','-')
+            await server.create_category(name=name_cat.upper())
 
-            await ctx.edit_original_response(content=(f'Catégorie {name_cat.upper()} créee pour {role} et {role2} !'))
+            category_object = discord.utils.get(ctx.guild.categories, name=name_cat.upper())
+            await category_object.set_permissions(target=role, read_messages=True, send_messages=True, connect=True, speak=True)
+
+            if role2 != None:
+
+                await category_object.set_permissions(target=role2, read_messages=True, send_messages=True, connect=True, speak=True)
+
+            await category_object.set_permissions(ctx.guild.default_role, read_messages=False, connect=False)
+
+            await server.create_text_channel(name="général-"+nom_categorie.lower(),category=category_object)
+            await server.create_text_channel(name="pédago-"+nom_categorie.lower(),category=category_object)
+
+            pedago = discord.utils.get(ctx.guild.roles,name="Team Pedago IPI")
+            await discord.utils.get(ctx.guild.channels, name="pédago-"+nom_categorie.lower()).set_permissions(target=pedago, read_messages=True, send_messages=True, connect=True, speak=True)
+
+            await server.create_text_channel(name="only-you",category=category_object)
+            await server.create_voice_channel(name="général-vocal",category=category_object)
+            if role2==None:
+
+                await ctx.edit_original_response(content=(f'Catégorie {name_cat.upper()} créée pour {role} !'),)
+
+            else:
+
+                await ctx.edit_original_response(content=(f'Catégorie {name_cat.upper()} créee pour {role} et {role2} !'))
     except Exception as e:
-        # Enregistrer l'erreur dans le fichier de journal
         logging.error(f'Error in command "erreur_commande": {e}', exc_info=True)
         
-        # Modifier la réponse originale pour indiquer qu'une erreur s'est produite
         await ctx.edit_original_response(content="Une erreur s'est produite lors de l'exécution de la commande.")
         return
 
+@create_category.error
+async def ma_commande_error(ctx, error):
+    if isinstance(error, discord.app_commands.errors.MissingPermissions): 
+        await ctx. response.send_message(content="Tu n'as pas la permission d'effectuer cette commande !", ephemeral=True)
+
+
+
 @tree.command(name = "supprimer_categorie", description = "Supprime la catégorie ainsi que les channels qu'elle contient")
-@commands.has_permissions(administrator=True)
+@app_commands.checks.has_permissions(administrator=True)
 @app_commands.describe(nom_categorie="Nom de la catégorie a supprimer (sans les =)")
 async def delete_category(ctx, nom_categorie : str):
     try:
         await ctx.response.send_message(content="J'y travaille...", ephemeral=True)
 
-        name_cat = f" {nom_categorie} "
+        name_cat = f" {nom_categorie.upper()} "
         while len(name_cat) <= 27:
 
             name_cat = f"={name_cat}="
 
-        tmp=""
-        for letter in nom_categorie:
+        nom_categorie = nom_categorie.replace(' ',"-")
 
-            if letter != " ":
+        categories_with_name = []
+        for category in ctx.guild.categories:
+            if category.name == name_cat:
+                categories_with_name.append(category)
+        print(categories_with_name)
 
-                tmp+=letter
+        if len(categories_with_name) > 1:
+            await ctx.edit_original_response(content=(f"Il existe {len(categories_with_name)} catégories avec le nom {name_cat}. Merci de bien vouloir corriger cela !")) 
 
-            else:
+        else:
+            try:
 
-                tmp+="-"
+                category_object = discord.utils.get(ctx.guild.categories, id=(discord.utils.get(ctx.guild.categories, name=name_cat.upper()).id))
+            
+                if category_object is None:
 
-        nom_categorie = tmp
+                    await ctx.edit_original_response(content=(f"La catégorie {name_cat.upper()} n'existe pas !"))
 
-        try:
+                else:
 
-            category_object = discord.utils.get(ctx.guild.categories, id=(discord.utils.get(ctx.guild.categories, name=name_cat.upper()).id))
-        
-            if category_object is None:
+                    try:
+
+                        for channel in category_object.channels:
+
+                            await channel.delete()
+
+                        await category_object.delete()
+
+                    except discord.errors.NotFound as e:
+                        
+                        print(e)
+                        
+                    await ctx.edit_original_response(content=(f'Catégorie {name_cat.upper()} supprimée !'))
+                
+            except AttributeError:
 
                 await ctx.edit_original_response(content=(f"La catégorie {name_cat.upper()} n'existe pas !"))
-
-            else:
-
-                try:
-
-                    for channel in category_object.channels:
-
-                        await channel.delete()
-
-                    await category_object.delete()
-
-                except discord.errors.NotFound as e:
-                    
-                    print(e)
-                    
-                await ctx.edit_original_response(content=(f'Catégorie {name_cat.upper()} supprimée !'))
-            
-        except AttributeError:
-
-            await ctx.edit_original_response(content=(f"La catégorie {name_cat.upper()} n'existe pas !"))
     except Exception as e:
-        # Enregistrer l'erreur dans le fichier de journal
         logging.error(f'Error in command "erreur_commande": {e}', exc_info=True)
-        
-        # Modifier la réponse originale pour indiquer qu'une erreur s'est produite
         await ctx.edit_original_response(content="Une erreur s'est produite lors de l'exécution de la commande.")
         return
 
+@delete_category.error
+async def ma_commande_error(ctx, error):
+    if isinstance(error, discord.app_commands.errors.MissingPermissions): 
+        await ctx. response.send_message(content="Tu n'as pas la permission d'effectuer cette commande !", ephemeral=True)
+
+
 @tree.command(name = "creer_channel", description = "Créer un channel dans une catégroei et lui donne les bonnes permissions !")
-@commands.has_permissions(manage_channels=True)
+@app_commands.checks.has_permissions(manage_channels=True)
 @app_commands.describe(nom_channel="Nom du channel a créer", nom_categorie="Catégorie où créer le channel")
 async def create_channel(ctx, nom_channel : str, nom_categorie : str):
     try:
         await ctx.response.send_message(content="J'y travaille...", ephemeral=True)
 
         server = ctx.guild
-        tmp=""
 
-        for letter in nom_channel:
-
-            if letter != " ":
-
-                tmp+=letter
-
-            else:
-
-                tmp+="-"
-
-        name_cat = f" {nom_categorie} "
+        name_cat = f" {nom_categorie.upper()} "
         while len(name_cat) <= 27:
 
             name_cat = f"={name_cat}="
 
-        category_object = discord.utils.get(ctx.guild.categories, name=name_cat.upper())
+        categories_with_name = []
+        for category in ctx.guild.categories:
+            if category.name == name_cat:
+                categories_with_name.append(category)
 
-        await server.create_text_channel(name=nom_channel.lower(),category=category_object)
+        if len(categories_with_name) > 1:
+            await ctx.edit_original_response(content=(f"Il existe {len(categories_with_name)} catégories avec le nom {name_cat}. Merci de bien vouloir corriger cela !")) 
 
-        pedago = discord.utils.get(ctx.guild.roles,name="Team Pedago IPI")
-        await discord.utils.get(ctx.guild.channels, name=nom_channel.lower()).set_permissions(target=pedago, read_messages=True, send_messages=True, connect=True, speak=True)
+        else:
 
-        await ctx.edit_original_response(content=(f'Channel {nom_channel.lower()} créé dans la catégorie {name_cat.upper()} !'))
+            category_object = discord.utils.get(ctx.guild.categories, name=name_cat.upper())
+
+            await server.create_text_channel(name=nom_channel.lower(),category=category_object)
+
+            pedago = discord.utils.get(ctx.guild.roles,name="Team Pedago IPI")
+            await discord.utils.get(ctx.guild.channels, name=nom_channel.lower()).set_permissions(target=pedago, read_messages=True, send_messages=True, connect=True, speak=True)
+
+            await ctx.edit_original_response(content=(f'Channel {nom_channel.lower()} créé dans la catégorie {name_cat.upper()} !'))
     except Exception as e:
-        # Enregistrer l'erreur dans le fichier de journal
         logging.error(f'Error in command "erreur_commande": {e}', exc_info=True)
         
-        # Modifier la réponse originale pour indiquer qu'une erreur s'est produite
         await ctx.edit_original_response(content="Une erreur s'est produite lors de l'exécution de la commande.")
         return
 
+
+@create_channel.error
+async def create_channel_error(ctx, error):
+    if isinstance(error, discord.app_commands.errors.MissingPermissions): 
+        await ctx. response.send_message(content="Tu n'as pas la permission d'effectuer cette commande !", ephemeral=True)
+
+
 @tree.command(name = "delete_channel", description = "Supprime un channel dans une catégorie")
-@commands.has_permissions(administrator=True)
+@app_commands.checks.has_permissions(administrator=True)
 @app_commands.describe(nom_channel="Nom du channel a supprimer", nom_categorie="Catégorie dans lequel il est situé")
 async def delete_channel(ctx, nom_channel : str, nom_categorie : str):
     try:
         await ctx.response.send_message(content="J'y travaille...", ephemeral=True)
 
-        name_cat = f" {nom_categorie} "
+        name_cat = f" {nom_categorie.upper()} "
         while len(name_cat) <= 27:
 
             name_cat = f"={name_cat}="
-
-        try:
-
-            category_object = discord.utils.get(ctx.guild.categories, id=(discord.utils.get(ctx.guild.categories, name=name_cat.upper()).id))
         
-            if category_object is None:
+        categories_with_name = []
+        for category in ctx.guild.categories:
+            if category.name == name_cat:
+                categories_with_name.append(category)
 
-                await ctx.edit_original_response(content=(f"La catégorie {name_cat.upper()} n'existe pas !"))
+        if len(categories_with_name) > 1:
+            await ctx.edit_original_response(content=(f"Il existe {len(categories_with_name)} catégories avec le nom {name_cat}. Merci de bien vouloir corriger cela !")) 
 
-            else:
+        else:
+            try:
 
-                try:
-
-                    for channels in category_object.channels:
-
-                        if str(channels) == nom_channel:
-
-                            await channels.delete()
-
-                except discord.errors.NotFound as e:
-
-                    print(e)
-                    
-                await ctx.edit_original_response(content=(f'Channel {nom_channel.lower()} supprimé dans la catégorie {name_cat.upper()} !'))
+                category_object = discord.utils.get(ctx.guild.categories, id=(discord.utils.get(ctx.guild.categories, name=name_cat.upper()).id))
             
-        except AttributeError as e:
+                if category_object is None:
 
-            print(e)
-            await ctx.edit_original_response(content=(f"Channel {nom_channel.lower()} n'éxiste pas dans la catégorie {name_cat.upper()}"))
+                    await ctx.edit_original_response(content=(f"La catégorie {name_cat.upper()} n'existe pas !"))
+
+                else:
+
+                    try:
+
+                        for channels in category_object.channels:
+
+                            if str(channels) == nom_channel:
+
+                                await channels.delete()
+
+                    except discord.errors.NotFound as e:
+
+                        print(e)
+                        
+                    await ctx.edit_original_response(content=(f'Channel {nom_channel.lower()} supprimé dans la catégorie {name_cat.upper()} !'))
+                
+            except AttributeError as e:
+
+                print(e)
+                await ctx.edit_original_response(content=(f"Channel {nom_channel.lower()} n'éxiste pas dans la catégorie {name_cat.upper()}"))
     except Exception as e:
-        # Enregistrer l'erreur dans le fichier de journal
         logging.error(f'Error in command "erreur_commande": {e}', exc_info=True)
         
-        # Modifier la réponse originale pour indiquer qu'une erreur s'est produite
         await ctx.edit_original_response(content="Une erreur s'est produite lors de l'exécution de la commande.")
         return
 
+@delete_channel.error
+async def ma_commande_error(ctx, error):
+    if isinstance(error, discord.app_commands.errors.MissingPermissions): 
+        await ctx. response.send_message(content="Tu n'as pas la permission d'effectuer cette commande !", ephemeral=True)
+
 
 @tree.command(name = "transferer_categorie", description = "Transferer une catégorie à un autre rôle")
-@commands.has_permissions(administrator=True)
+@app_commands.checks.has_permissions(administrator=True)
 @app_commands.describe(nouveau_nom_categorie="Nom actuel de la catégorie a transferer", ancien_nom_categorie="Nouveau nom a donner a la categorie",nouveau_role="Nouveau role pouvant avoir acces a la categorie",ancien_role="Role ayant actuellement l'acces a la categorie",nouveau_nom="Chaine de caractere servant a remplacer l'ancienne dans le nom des channels", ancien_nom="Chaine de caractere devant etre remplacer dans le nom des channels")
 async def transfert_category(ctx, ancien_nom_categorie:str, nouveau_nom_categorie:str, ancien_nom:str, nouveau_nom:str, ancien_role : discord.Role, nouveau_role : discord.Role):
     try:
         await ctx.response.send_message(content="J'y travaille...", ephemeral=True)
 
-        try:
-            name_cat = f" {ancien_nom_categorie.upper()} "
-            while len(name_cat) <= 27:
+        name_cat = f" {ancien_nom_categorie.upper()} "
+        while len(name_cat) <= 27:
 
-                name_cat = f"={name_cat}="
+            name_cat = f"={name_cat}="
 
-            category = discord.utils.get(ctx.guild.categories, id=(discord.utils.get(ctx.guild.categories, name=name_cat.upper()).id))
-            
-            name_cat = f" {nouveau_nom_categorie} "
-            while len(name_cat) <= 27:
+        categories_with_name = []
+        for category in ctx.guild.categories:
+            if category.name == name_cat:
+                categories_with_name.append(category)
 
-                name_cat = f"={name_cat.upper()}="
+        if len(categories_with_name) > 1:
+            await ctx.edit_original_response(content=(f"Il existe {len(categories_with_name)} catégories avec le nom {name_cat}. Merci de bien vouloir corriger cela !")) 
 
-            await category.edit(name=name_cat.upper())
+        else:    
+            try:
+                category = discord.utils.get(ctx.guild.categories, id=(discord.utils.get(ctx.guild.categories, name=name_cat.upper()).id))
+                
+                name_cat = f" {nouveau_nom_categorie} "
+                while len(name_cat) <= 27:
 
-            source_permissions = category.overwrites[ancien_role]
-            target_permissions = {}
+                    name_cat = f"={name_cat.upper()}="
 
-            for permission, value in source_permissions:
-                target_permissions[permission] = value
+                await category.edit(name=name_cat.upper())
 
-            new_overwrite = discord.PermissionOverwrite(**target_permissions)
-            await category.set_permissions(target=nouveau_role, overwrite=new_overwrite)
+                source_permissions = category.overwrites[ancien_role]
+                target_permissions = {}
 
-            await category.set_permissions(target=ancien_role, overwrite=None)
+                for permission, value in source_permissions:
+                    target_permissions[permission] = value
 
-            if category is None:
-                await ctx.edit_original_response(content="La catégorie spécifiée n'existe pas.")
-                return
-            
-            for channel in category.channels:
-                if isinstance(channel, (discord.TextChannel, discord.VoiceChannel)):
-                    overwrites = channel.overwrites
-                    
-                    new_name = channel.name.replace(ancien_nom.lower().replace(' ','-'), nouveau_nom.lower().replace(' ','-'))
-                    await channel.edit(name=new_name)
+                new_overwrite = discord.PermissionOverwrite(**target_permissions)
+                await category.set_permissions(target=nouveau_role, overwrite=new_overwrite)
 
-                    nouveau_nom,ancien_nom = nouveau_nom.upper(),ancien_nom.upper()
+                await category.set_permissions(target=ancien_role, overwrite=None)
 
-                    if nouveau_role is None:
-                        return
-                    
-                    if ancien_role is None:
-                        return
-
-                    if ancien_role in overwrites:
+                if category is None:
+                    await ctx.edit_original_response(content="La catégorie spécifiée n'existe pas.")
+                    return
+                
+                for channel in category.channels:
+                    if isinstance(channel, (discord.TextChannel, discord.VoiceChannel)):
+                        overwrites = channel.overwrites
                         
-                        source_permissions = channel.overwrites[ancien_role]
-                        target_permissions = {}
+                        new_name = channel.name.replace(ancien_nom.lower().replace(' ','-'), nouveau_nom.lower().replace(' ','-'))
+                        await channel.edit(name=new_name)
 
-                        for permission, value in source_permissions:
-                            target_permissions[permission] = value
+                        nouveau_nom,ancien_nom = nouveau_nom.upper(),ancien_nom.upper()
 
-                        new_overwrite = discord.PermissionOverwrite(**target_permissions)
-                        await channel.set_permissions(target=nouveau_role, overwrite=new_overwrite)
+                        if nouveau_role is None:
+                            return
+                        
+                        if ancien_role is None:
+                            return
 
-                        await channel.set_permissions(target=ancien_role, overwrite=None)
+                        if ancien_role in overwrites:
+                            
+                            source_permissions = channel.overwrites[ancien_role]
+                            target_permissions = {}
 
-            await ctx.edit_original_response(content=f'La catégorie {ancien_nom_categorie} a bien été transferer du rôle {ancien_role.name} au role {nouveau_role.name}')
+                            for permission, value in source_permissions:
+                                target_permissions[permission] = value
 
-        except Exception as e:
-            await ctx.edit_original_response(content=f'Une erreur est survenue, veuillez verifier que tous les paramètres sont correctes puis rééssayez. Si le problème persiste veuillez contacter Nathan SABOT DRESSY')
-            print(e)
+                            new_overwrite = discord.PermissionOverwrite(**target_permissions)
+                            await channel.set_permissions(target=nouveau_role, overwrite=new_overwrite)
+
+                            await channel.set_permissions(target=ancien_role, overwrite=None)
+
+                await ctx.edit_original_response(content=f'La catégorie {ancien_nom_categorie} a bien été transferer du rôle {ancien_role.name} au role {nouveau_role.name}')
+
+            except Exception as e:
+                await ctx.edit_original_response(content=f'Une erreur est survenue, veuillez verifier que tous les paramètres sont correctes puis rééssayez. Si le problème persiste veuillez contacter Nathan SABOT DRESSY')
+                print(e)
     except Exception as e:
-        # Enregistrer l'erreur dans le fichier de journal
         logging.error(f'Error in command "erreur_commande": {e}', exc_info=True)
         
-        # Modifier la réponse originale pour indiquer qu'une erreur s'est produite
         await ctx.edit_original_response(content="Une erreur s'est produite lors de l'exécution de la commande.")
         return
-    
 
-@tree.command(name = "print_categories", description = "Affiche le nom de categorie")
-@commands.has_permissions(administrator=True)
+@transfert_category.error
+async def ma_commande_error(ctx, error):
+    if isinstance(error, discord.app_commands.errors.MissingPermissions): 
+        await ctx. response.send_message(content="Tu n'as pas la permission d'effectuer cette commande !", ephemeral=True)
+
+
+#@tree.command(name = "print_categories", description = "Affiche le nom de categorie")
+#@app_commands.checks.has_permissions(administrator=True)
 async def categories(ctx):
     try:
-        await ctx.response.send_message(content="J'y travaille...", ephemeral=True)
-        guild = ctx.guild
-        category_names = [category.name for category in guild.categories]
-        
-        if category_names:
-            await ctx.channel.send(content=f"Catégories du serveur:")
-            for category in guild.categories:
-                name_cat = f" {category.name.replace(' =','').replace('= ','').replace('=','')} "
-                while len(name_cat) <= 27:
-                    name_cat = f"={name_cat}="
+        try:
+            await ctx.response.send_message(content="J'y travaille...", ephemeral=True)
+            guild = ctx.guild
+            category_names = [category.name for category in guild.categories]
+            user = client.get_user(ctx.user.id)
+            if category_names:
+                result = "Catégories du serveur : \n\n"
+                for category in guild.categories:
+                    name_cat = f" {category.name.replace(' =','').replace('= ','').replace('=','').replace('  ',' ')} "
+                    while len(name_cat) <= 27:
+                        name_cat = f"={name_cat}="
 
-                category_list = (name_cat)
-                await ctx.channel.send(content=f"{category_list}")
+                    result+= (name_cat) + "\n"
+                await user.send(content=result)
             else:
                 await ctx.edit_original_response(content="Le serveur ne possède pas de catégories.")
-    except Exception as e:
-        # Enregistrer l'erreur dans le fichier de journal
-        logging.error(f'Error in command "erreur_commande": {e}', exc_info=True)
-        
-        # Modifier la réponse originale pour indiquer qu'une erreur s'est produite
-        await ctx.edit_original_response(content="Une erreur s'est produite lors de l'exécution de la commande.")
+                return
+            
+        except Exception as e:
+            logging.error(f'Error in command "erreur_commande": {e}', exc_info=True)
+            
+            await ctx.edit_original_response(content="Une erreur s'est produite lors de l'exécution de la commande.")
+            return
+    except discord.app_commands.errors.MissingPermissions:
+        await ctx.response.send_message(content="Tu n'as pas la permission d'effectuer cette commande !", ephemeral=True)
         return
     
 
@@ -477,6 +534,7 @@ async def agenda(ctx, date:str = ""):
                     date = datetime.strptime(date, "%d/%m/%Y").date().strftime("%m/%d/%Y")
                 except ValueError:
                     await ctx.edit_original_response(content="Le format de la date fournit n'est pas valide la date doit etre le la forme jj/mm/aaaa")
+                    return
             
             max_attempts = 3
 
@@ -486,8 +544,8 @@ async def agenda(ctx, date:str = ""):
                 
                 url = f'https://ws-edt-igs.wigorservices.net/WebPsDyn.aspx?action=posEDTLMS&serverID=G&date={date}'
 
-                username = LoginPromoJson[str(ctx.user.id)]["login"]
-                password = LoginPromoJson[str(ctx.user.id)]["mdp"]
+                username = cryptocode.decrypt(LoginPromoJson[str(ctx.user.id)]["login"], DataJson['CRYPT'])
+                password = cryptocode.decrypt(LoginPromoJson[str(ctx.user.id)]["mdp"], DataJson['CRYPT'])
 
                 firefox_options = Options()
                 firefox_options.add_argument("-private")
@@ -521,24 +579,25 @@ async def agenda(ctx, date:str = ""):
                     driver.quit()
                     break
             file = discord.File(f"Timeable.png")
-            if os.path.exists(f"Timeable.png"):
-                try:
-                    os.remove(f"Timeable.png")
-                except:
-                    pass
-            
-            await ctx.edit_original_response(content="Ton emploi du temps t'as été envoyé en message ! Verifie bien que tu puisse recevoir des messages de ma part !")
+                
             user = client.get_user(ctx.user.id)
             await user.send(file=file)
+            await ctx.edit_original_response(content="Ton emploi du temps t'as été envoyé en message ! Verifie bien que tu puisse recevoir des messages de ma part !")
+            if os.path.exists(f"Timeable.png"):
+                os.remove(f"Timeable.png")
         else:
             await ctx.edit_original_response(content="Tu ne possède pas d'identifiants enregitrés, pour cela tu peux effectuer /agenda_enregitrer !")
     except Exception as e:
-        # Enregistrer l'erreur dans le fichier de journal
         logging.error(f'Error in command "erreur_commande": {e}', exc_info=True)
         
-        # Modifier la réponse originale pour indiquer qu'une erreur s'est produite
         await ctx.edit_original_response(content="Une erreur s'est produite lors de l'exécution de la commande.")
         return
+
+@agenda.error
+async def agenda_error(ctx, error):
+    if isinstance(error, discord.app_commands.errors.MissingPermissions): 
+        await ctx. response.send_message(content="Tu n'as pas la permission d'effectuer cette commande !", ephemeral=True)
+
 
 @tree.command(name = "agenda_accorder_droit", description = "Donne le droit d'acceder a votre emploi du temps a la personne ciblée (de preference de votre promo)")
 @app_commands.describe(membre="Membre a qui donner le droit")
@@ -564,14 +623,19 @@ async def accorder_droit(ctx, membre: discord.Member):
         else:
             await ctx.edit_original_response(content="Vous ne posséder pas d'identifiants enregistrer identifiants")
 
-        await ctx.edit_original_response(content="Une erreur s'est produite")
+        
     except Exception as e:
-        # Enregistrer l'erreur dans le fichier de journal
         logging.error(f'Error in command "erreur_commande": {e}', exc_info=True)
         
-        # Modifier la réponse originale pour indiquer qu'une erreur s'est produite
         await ctx.edit_original_response(content="Une erreur s'est produite lors de l'exécution de la commande.")
         return
+
+@accorder_droit.error
+async def accorder_droit_error(ctx, error):
+    if isinstance(error, discord.app_commands.errors.MissingPermissions): 
+        await ctx. response.send_message(content="Tu n'as pas la permission d'effectuer cette commande !", ephemeral=True)
+
+
 @tree.command(name = "agenda_retirer_droit", description = "Retire le droit d'acceder a votre emploi du temps a la personne ciblée")
 @app_commands.describe(membre="Membre a qui retirer le droit")
 @app_commands.checks.has_any_role('Team Pedago IPI', 'Team Entreprise IPI', 'Team Communication IPI', 'Directrice IPI', 'Admin Serveur','Apprenant IPI')
@@ -598,12 +662,15 @@ async def retirer_droit(ctx, membre: discord.Member):
         else:
             await ctx.edit_original_response(content="Vous ne posséder pas d'identifiants enregistrés identifiants")
     except Exception as e:
-        # Enregistrer l'erreur dans le fichier de journal
         logging.error(f'Error in command "erreur_commande": {e}', exc_info=True)
         
-        # Modifier la réponse originale pour indiquer qu'une erreur s'est produite
         await ctx.edit_original_response(content="Une erreur s'est produite lors de l'exécution de la commande.")
         return
+
+@retirer_droit.error
+async def retirer_droit_error(ctx, error):
+    if isinstance(error, discord.app_commands.errors.MissingPermissions): 
+        await ctx. response.send_message(content="Tu n'as pas la permission d'effectuer cette commande !", ephemeral=True)
 
 @tree.command(name = "agenda_enregitrer", description = "S'enregitrer pour avoir acces a son emploi du temps sur discord")
 @app_commands.describe(identifiant="Identifiant de connection MonCampus", mdp="Mot de passe de connection MonCampus")
@@ -616,7 +683,7 @@ async def enregitrer(ctx, identifiant: str, mdp : str):
             LoginPromoJson = json.load(jsonFile)
             jsonFile.close()
         if (str(ctx.user.id) not in LoginPromoJson):
-            nouvelle_entree = {str(ctx.user.id): {"login" : identifiant ,"mdp" : mdp, "extend": False}}
+            nouvelle_entree = {str(ctx.user.id): {"login" : cryptocode.encrypt(identifiant, DataJson['CRYPT']) ,"mdp" : cryptocode.encrypt(mdp, DataJson['CRYPT']), "extend": False}}
 
             LoginPromoJson.update(nouvelle_entree)
 
@@ -627,13 +694,17 @@ async def enregitrer(ctx, identifiant: str, mdp : str):
         else:
             await ctx.edit_original_response(content="Vous posséder deja des identifiants enregistrés")
     except Exception as e:
-        # Enregistrer l'erreur dans le fichier de journal
         logging.error(f'Error in command "erreur_commande": {e}', exc_info=True)
         
-        # Modifier la réponse originale pour indiquer qu'une erreur s'est produite
         await ctx.edit_original_response(content="Une erreur s'est produite lors de l'exécution de la commande.")
         return
-    
+
+@enregitrer.error
+async def enregitrer_error(ctx, error):
+    if isinstance(error, discord.app_commands.errors.MissingPermissions): 
+        await ctx. response.send_message(content="Tu n'as pas la permission d'effectuer cette commande !", ephemeral=True)
+
+
 @tree.command(name = "agenda_eleve", description = "Affiche l'agenda pour la semaine")
 @app_commands.describe(membre="Vous allez visiualiser l'agenda de cette personne si elle s'est authentifiée (il est possible que l'emploi du temps soit celui d'une autre personne si elle lui a donnée l'acces a ce dernier)" ,date="Agenda a la date du : (au format jour/mois/année exemple : 05/04/2024)")
 @app_commands.checks.has_any_role('Team Pedago IPI', 'Team Entreprise IPI', 'Team Communication IPI', 'Directrice IPI', 'Admin Serveur')
@@ -653,6 +724,7 @@ async def agenda_eleve(ctx, membre: discord.Member ,date:str = ""):
                 except ValueError:
                     await ctx.edit_original_response(content="Le format de la date fournit n'est pas valide la date doit etre le la forme jj/mm/aaaa")
             
+                    return
             max_attempts = 3
 
             for attempt in range(max_attempts):
@@ -661,8 +733,8 @@ async def agenda_eleve(ctx, membre: discord.Member ,date:str = ""):
                 
                 url = f'https://ws-edt-igs.wigorservices.net/WebPsDyn.aspx?action=posEDTLMS&serverID=G&date={date}'
 
-                username = LoginPromoJson[str(membre.id)]["login"]
-                password = LoginPromoJson[str(membre.id)]["mdp"]
+                username = cryptocode.decrypt(LoginPromoJson[str(membre.id)]["login"], DataJson['CRYPT'])
+                password = cryptocode.decrypt(LoginPromoJson[str(membre.id)]["mdp"], DataJson['CRYPT'])
 
                 firefox_options = Options()
                 firefox_options.add_argument("-private")
@@ -703,17 +775,24 @@ async def agenda_eleve(ctx, membre: discord.Member ,date:str = ""):
                 except:
                     pass
             
-            await ctx.edit_original_response(content="Et voici l'emploi du temps de " + membre.nick + " !")
-            await ctx.channel.send(file=file)
+            await ctx.edit_original_response(content="L'emploi du temps de " + membre.nick + " a été envoyé par message!")
+            user = client.get_user(ctx.user.id)
+            await user.send(file=file, content=f"Voici l'emploi du temps de {membre.nick}")
         else:
             await ctx.edit_original_response(content="Cette personne ne possède pas d'identifiants enregitrés !")
     except Exception as e:
-        # Enregistrer l'erreur dans le fichier de journal
         logging.error(f'Error in command "erreur_commande": {e}', exc_info=True)
         
-        # Modifier la réponse originale pour indiquer qu'une erreur s'est produite
         await ctx.edit_original_response(content="Une erreur s'est produite lors de l'exécution de la commande.")
         return
+
+
+@agenda_eleve.error
+async def agenda_eleve_error(ctx, error):
+    if isinstance(error, discord.app_commands.errors.MissingPermissions): 
+        await ctx. response.send_message(content="Tu n'as pas la permission d'effectuer cette commande !", ephemeral=True)
+
+
 @tree.command(name="agenda_modifier", description="Modifier les identifiants enregistrés")
 @app_commands.describe(identifiant="Nouvel identifiant de connection MonCampus", mdp="Nouveau mot de passe de connection MonCampus")
 @app_commands.checks.has_any_role('Team Pedago IPI', 'Team Entreprise IPI', 'Team Communication IPI', 'Directrice IPI', 'Admin Serveur', 'Apprenant IPI')
@@ -753,11 +832,14 @@ async def agenda_modifier(ctx, identifiant: str, mdp: str):
             await ctx.edit_original_response(content="Aucun identifiant enregistré trouvé pour votre utilisateur.")
 
     except Exception as e:
-        # Enregistrer l'erreur dans le fichier de journal
         logging.error(f'Error in command "modifier_entree": {e}', exc_info=True)
 
-        # Modifier la réponse originale pour indiquer qu'une erreur s'est produite
         await ctx.edit_original_response(content="Une erreur s'est produite lors de l'exécution de la commande.")
+
+@agenda_modifier.error
+async def agenda_modifier_error(ctx, error):
+    if isinstance(error, discord.app_commands.errors.MissingPermissions): 
+        await ctx. response.send_message(content="Tu n'as pas la permission d'effectuer cette commande !", ephemeral=True)
 
 
 @tree.command(name="agenda_desenregistrer", description="Supprimer toutes les entrées avec votre identifiant")
@@ -804,12 +886,14 @@ async def desenregistrer(ctx):
             await ctx.edit_original_response(content=f"Tes identifiants ont bien été supprimées")
 
     except Exception as e:
-        # Enregistrer l'erreur dans le fichier de journal
         logging.error(f'Error in command "desenregistrer": {e}', exc_info=True)
 
-        # Modifier la réponse originale pour indiquer qu'une erreur s'est produite
         await ctx.edit_original_response(content="Une erreur s'est produite lors de l'exécution de la commande.")
 
+@desenregistrer.error
+async def desenregistrer_error(ctx, error):
+    if isinstance(error, discord.app_commands.errors.MissingPermissions): 
+        await ctx. response.send_message(content="Tu n'as pas la permission d'effectuer cette commande !", ephemeral=True)
 
 
 client.run(DataJson["DISCORD_TOKEN"])
