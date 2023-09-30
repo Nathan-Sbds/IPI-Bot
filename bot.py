@@ -264,9 +264,7 @@ async def create_category(ctx, nom_categorie : str, role : discord.Role, role2 :
             await discord.utils.get(ctx.guild.channels, name="général-"+nom_categorie.lower()).set_permissions(target=entreprise, read_messages=True, send_messages=True, connect=True, speak=True)
             await discord.utils.get(ctx.guild.channels, name="général-"+nom_categorie.lower()).set_permissions(target=directrice, read_messages=True, send_messages=True, connect=True, speak=True)    
             
-            
             await server.create_text_channel(name="pédago-"+nom_categorie.lower(),category=category_object)
-
             await discord.utils.get(ctx.guild.channels, name="pédago-"+nom_categorie.lower()).set_permissions(target=pedago, read_messages=True, send_messages=True, connect=True, speak=True)
 
             await server.create_text_channel(name="only-you",category=category_object)
@@ -460,8 +458,8 @@ async def delete_channel_error(ctx, error):
 
 @tree.command(name = "transferer_categorie", description = "Transferer une catégorie à un autre rôle")
 @app_commands.checks.has_permissions(administrator=True)
-@app_commands.describe(nouveau_nom_categorie="Nom actuel de la catégorie a transferer", ancien_nom_categorie="Nouveau nom a donner a la categorie",nouveau_role="Nouveau role pouvant avoir acces a la categorie",ancien_role="Role ayant actuellement l'acces a la categorie",nouveau_nom="Chaine de caractere servant a remplacer l'ancienne dans le nom des channels", ancien_nom="Chaine de caractere devant etre remplacer dans le nom des channels")
-async def transfert_category(ctx, ancien_nom_categorie:str, nouveau_nom_categorie:str, ancien_nom:str, nouveau_nom:str, ancien_role : discord.Role, nouveau_role : discord.Role):
+@app_commands.describe(nouveau_nom_categorie="Nom actuel de la catégorie a transferer", ancien_nom_categorie="Nouveau nom a donner a la categorie",nouveau_role="Nouveau role pouvant avoir acces a la categorie",ancien_role="Role ayant actuellement l'acces a la categorie",nouveau_nom_channel="Chaine de caractere servant a remplacer l'ancienne dans le nom des channels", ancien_nom_channel="Chaine de caractere devant etre remplacer dans le nom des channels")
+async def transfert_category(ctx, ancien_nom_categorie:str, nouveau_nom_categorie:str, ancien_nom_channel:str, nouveau_nom_channel:str, ancien_role : discord.Role, nouveau_role : discord.Role):
     try:
         await ctx.response.send_message(content="J'y travaille...", ephemeral=True)
 
@@ -508,10 +506,10 @@ async def transfert_category(ctx, ancien_nom_categorie:str, nouveau_nom_categori
                     if isinstance(channel, (discord.TextChannel, discord.VoiceChannel)):
                         overwrites = channel.overwrites
                         
-                        new_name = channel.name.replace(ancien_nom.lower().replace(' ','-'), nouveau_nom.lower().replace(' ','-'))
+                        new_name = channel.name.replace(ancien_nom_channel.lower().replace(' ','-'), nouveau_nom_channel.lower().replace(' ','-'))
                         await channel.edit(name=new_name)
 
-                        nouveau_nom,ancien_nom = nouveau_nom.upper(),ancien_nom.upper()
+                        nouveau_nom_channel,ancien_nom_channel = nouveau_nom_channel.upper(),ancien_nom_channel.upper()
 
                         if nouveau_role is None:
                             return

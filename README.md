@@ -1,27 +1,53 @@
 Il est necessaire de mettre un Token à ce bot dans le data.json. A la premiere execution, le bot peut mettre une periode pouvant aller jusqu'a plusieurs dizaine de minutes avant d'afficher les commandes dans discord. Cela est normal lors de sa première execution, les éxecutions suivantes seront beaucoup plus rapide si aucun changement structurel n'est effectué.
 
-Le bot possède 6 commandes :
+Le bot possède 19 commandes :
 
-	- /assigner_role [fichier] [role] [supprimer]
+	- /agenda (date)
 
-	- /transferer_role [ancien_role] [nouveau_role] [supprimer]
+	- /agenda_accorder_droit_membre [membre]
+
+	- /agenda_accorder_droit_role [role]
+
+	- /agenda_desenregitrer
+
+	- /agenda_eleve [membre] (date)
+
+	- /agenda_enregitrer [identifiant] [mdp]
+
+	- /agenda_modifier [identifiant] [mdp]
+
+	- /agenda_retirer_droit_membre [membre]
+	
+	- /agenda_retirer_droit_role [role]
+
+	- /agenda_voir_partage_droit
+
+	- /assigner_role [fichier] [supprimer] [role] (role2) (role3)
 
 	- /creer_categorie [nom_categorie] [role] (role2)
 
-	- /supprimer_categorie [nom_categorie]
-
 	- /creer_channel [nom_channel] [nom_categorie]
 
+	- /ping
+	
+	- /supprimer_categorie [nom_categorie]
+
 	- /supprimer_channel [nom_channel] [nom_categorie]
+
+	- /supprimer_role [role] (role2)
+
+	- /transferer_categorie [ancien_nom_categorie] [nouveau_nom_categorie] [ancien_nom_channel] [nouveau_nom_channel] [ancien_role] [nouveau_role]
+
+	- /transferer_role [ancien_role] [nouveau_role] [supprimer]
 
 
 
 
 La commande /assigner_role affecte le role donné en argument à toutes les personnes presentes dans le fichier .csv et ayant le nom et prenom correspondant sur discord. Si l'argument supprimer est VRAI alors toutes les personnes possedant le role avant la commande se le voient retirer.
 
-exemple : /assigner_role b1ifd.csv @B1-IFD vrai 
+exemple : /assigner_role b1ifd.csv @B2-IFD vrai 
 
-	- Cette commande donnera le role @B1-IFD a toutes les personnes présentes dans le fichier b1ifd.csv après avoir retiré le role a toutes personnes le possèdant.
+	- Cette commande donnera le role @B2-IFD a toutes les personnes présentes dans le fichier b1ifd.csv après avoir retiré le role a toutes personnes le possèdant.
 
 
 
@@ -36,7 +62,7 @@ La commande /creer_categorie permet de créer une categorie contenant les channe
 
 exemple : /creer_categorie b1-ifd @B1-IFD 
 
-	- Cette commande va créer une catégorie nommée ========== B1-IFD ========== ayant les channels #général-b1-ifd , #pédago-b1-ifd , #only-you et général-vocal ayant les bonnes permissions et accès pour le role @B1-IFD.
+	- Cette commande va créer une catégorie nommée ========== B2 IFD ========== ayant les channels #général-b1-ifd , #pédago-b1-ifd , #only-you et général-vocal ayant les bonnes permissions et accès pour le role @B1-IFD.
 
 
 
@@ -44,7 +70,7 @@ La commande /supprimer_categorie permet de supprimer entierement une categorie a
 
 exemple : /supprimer_categorie b1-ifd 
 
-	- Cette commande va supprimer la catégorie nommée ========== B1-IFD ========== ainsi que tous les channels qui l'a compose.
+	- Cette commande va supprimer la catégorie nommée ========== B2 IFD ========== ainsi que tous les channels qui l'a compose.
 
 
 
@@ -52,7 +78,7 @@ La commande /creer_channel permet de créer un channel ayant le nom donner en ar
 
 exemple: /creer_channel intro-reseau b1-ifd 
 
-	- Cette commande va creer le channel #intro-reseau dans la categorie ========== B1-IFD ========== en lui mettant les permissions pour les @B1-IFD qui on accès a cette categorie.
+	- Cette commande va creer le channel #intro-reseau dans la categorie ========== B2 IFD ========== en lui mettant les permissions pour les @B1-IFD qui on accès a cette categorie.
 
 
 
@@ -60,4 +86,4 @@ La commande /suprimmer_channel supprime le channel ayant le nom donner en argume
 
 exemple: /supprimer_channel intro-reseau b1-ifd 
 
-	- Cette commande va supprimer le channel #intro-reseau situé dans la catégorie ========== B1-IFD ==========
+	- Cette commande va supprimer le channel #intro-reseau situé dans la catégorie ========== B2 IFD ==========
