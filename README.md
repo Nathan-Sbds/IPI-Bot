@@ -43,7 +43,7 @@ Le bot possède 19 commandes :
 
 
 
-# agenda
+# /agenda
 
 Cette commande permet d'afficher l'agenda de la semaine pour une date spécifiée.
 
@@ -68,7 +68,7 @@ Si aucun argument de date n'est fourni, la commande affichera l'agenda de la sem
    
   
   
-# agenda_accorder_droit_membre
+# /agenda_accorder_droit_membre
 
 Cette commande permet de donner le droit d'accéder à votre emploi du temps à un membre spécifié, de préférence de votre promo.
 
@@ -93,7 +93,7 @@ Cette commande accorde à l'utilisateur mentionné le droit d'accéder à votre 
   
    
   
-# agenda_accorder_droit_role
+# /agenda_accorder_droit_role
 
 Cette commande permet de donner le droit d'accéder à votre emploi du temps à toutes les personnes ayant le rôle spécifié.
 
@@ -118,7 +118,7 @@ Cette commande accorde à tous les membres du rôle spécifié le droit d'accéd
  
 
 
-# agenda_desenregistrer
+# /agenda_desenregistrer
 
 Cette commande permet aux utilisateurs de supprimer toutes les entrées associées à leur identifiant MonCampus.
 
@@ -142,7 +142,7 @@ Cette commande supprime toutes les entrées associées à l'identifiant MonCampu
 
 
 
-# agenda_eleve
+# /agenda_eleve
 
 Cette commande permet d'afficher l'emploi du temps d'un membre du serveur Discord. L'emploi du temps affiché est celui de la personne ciblée, à condition qu'elle se soit authentifiée en enregistrant ses identifiants MonCampus ou qu’elle ait reçue les identifiants d’un autre.
 
@@ -167,7 +167,7 @@ Cette commande affiche l'emploi du temps du membre mentionné pour la date spéc
  
 
 
-# agenda_enregistrer
+# /agenda_enregistrer
 
 Cette commande permet aux utilisateurs de s'enregistrer pour avoir accès à leur emploi du temps sur Discord.
 
@@ -192,7 +192,7 @@ Cette commande enregistre vos identifiants de connexion MonCampus pour accéder 
  
 
 
-# agenda_modifier
+# /agenda_modifier
 
 Cette commande permet de mettre à jour les identifiants MonCampus enregistrés pour l'accès à l'emploi du temps.
 
@@ -218,7 +218,7 @@ Cette commande met à jour les identifiants MonCampus pour toutes les entrées c
  
 
 
-# agenda_retirer_droit_membre
+# /agenda_retirer_droit_membre
 
 Cette commande permet de retirer le droit d'accès à votre emploi du temps à une personne ciblée.
 
@@ -242,7 +242,7 @@ Cette commande retire le droit d'accès à votre emploi du temps à la personne 
  
 
 
-# agenda_retirer_droit_role
+# /agenda_retirer_droit_role
 
 Cette commande permet de retirer le droit d'accès à votre emploi du temps à toutes les personnes ayant le rôle spécifié.
 
@@ -266,7 +266,7 @@ Cette commande retire à tous les membres du rôle spécifié le droit d'accéde
 
  
 
-# agenda_voir_partage_droit
+# /agenda_voir_partage_droit
 
 Cette commande permet de voir les membres avec qui vous partagez votre agenda.
 
@@ -290,7 +290,7 @@ Cette commande affiche les membres avec qui vous partagez votre agenda. Si vous 
 
 
 
-# assigner_role
+# /assigner_role
 
 Cette commande permet de donner un rôle spécifié à toutes les personnes dont les noms et prénoms se trouvent dans un fichier CSV joint. Elle peut également supprimer le rôle actuel des personnes si l'option correspondante est activée.
 
@@ -318,7 +318,7 @@ Cette commande va parcourir le fichier CSV spécifié, rechercher les noms et pr
  
 
 
-# creer_categorie
+# /creer_categorie
 
 Cette commande permet de créer une catégorie basique avec des canaux de discussion textuels et vocaux, ainsi que de définir des autorisations pour certains rôles dans cette catégorie.
 
@@ -345,7 +345,7 @@ Elle affichera ensuite un message indiquant que la catégorie a été créée po
  
 
 
-# creer_channel
+# /creer_channel
 
 Cette commande permet de créer un canal de discussion textuel dans une catégorie spécifiée et de définir des autorisations pour certains rôles dans ce canal.
 
@@ -371,7 +371,7 @@ Elle affichera ensuite un message indiquant que le canal a été créé dans la 
  
 
 
-# supprimer_categorie
+# /supprimer_categorie
 
 Cette commande permet de supprimer une catégorie spécifique ainsi que tous les canaux qu'elle contient.
 
@@ -396,7 +396,7 @@ Elle affichera ensuite un message indiquant que la catégorie a été supprimée
 
  
 
-# supprimer_channel
+# /supprimer_channel
 
 Cette commande permet de supprimer un canal de discussion textuel dans une catégorie spécifiée.
 
@@ -421,7 +421,7 @@ Elle affichera ensuite un message indiquant que le canal a été supprimé de la
  
 
 
-# supprimer_role
+# /supprimer_role
 
 Cette commande permet de supprimer un rôle spécifié à toutes les personnes ayant ce rôle. Vous avez également la possibilité de retirer le rôle uniquement aux personnes ayant un autre rôle spécifié.
 
@@ -447,7 +447,7 @@ Elle affichera ensuite un message indiquant les personnes auxquelles le rôle a 
  
 
 
-# transferer_categorie
+# /transferer_categorie
 
 Cette commande permet de transférer une catégorie existante à un autre rôle, tout en remplaçant une chaîne de caractères dans le nom des canaux de la catégorie.
 
@@ -478,7 +478,7 @@ Elle affichera ensuite un message indiquant que la catégorie a été transfér�
  
 
 
-# transferer_role
+# /transferer_role
 
 Cette commande permet de transférer un rôle spécifié à toutes les personnes ayant un autre rôle. Vous avez également la possibilité de supprimer le rôle actuel des personnes ayant le rôle d'origine.
 
