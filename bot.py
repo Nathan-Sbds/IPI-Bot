@@ -1,4 +1,4 @@
-import discord,re,json,urllib.request,os,logging,cryptocode
+import discord,re,json,urllib.request,os,logging,cryptocode,asyncio
 from discord import app_commands
 from selenium import webdriver
 from selenium.webdriver.common.keys import Keys
@@ -6,7 +6,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.firefox.options import Options
-from datetime import datetime
+from datetime import datetime,timedelta
 
 logging.basicConfig(filename='bot_errors.log', level=logging.ERROR, format='%(asctime)s [%(levelname)s]: %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
 intents = discord.Intents().all()
@@ -22,6 +22,22 @@ async def on_ready():
     await client.change_presence(status=discord.Status.online, activity=discord.Game("Gerer les choses..."))
     await tree.sync()
     print("Ready!")
+
+    while not client.is_closed():
+        now = datetime.now()
+        next_execution_time = datetime(now.year, now.month, now.day, 4,0,0)
+        if now.weekday() > 0:
+            days_until_monday = 7 - now.weekday()
+            next_execution_time += timedelta(days=days_until_monday)
+        
+        if next_execution_time < now:
+            next_execution_time += timedelta(weeks=1)
+
+        delta = next_execution_time - now
+        seconds_until_execution = delta.total_seconds()
+
+        await asyncio.sleep(seconds_until_execution)
+        await all_agenda_week_print()
 
 
 @tree.command(name = "ping", description = "Donne la latence du bot !")
@@ -1065,4 +1081,87 @@ async def desenregistrer_error(ctx, error):
         await ctx.response.send_message(content="Tu n'as pas la permission d'effectuer cette commande !", ephemeral=True)
 
 
+
+async def all_agenda_week_print():
+    await client.wait_until_ready()
+
+    for guild in client.guilds:
+        members_with_role = []
+
+        for member in guild.members:
+            if discord.utils.get(member.roles, name="Apprenant IPI") and not discord.utils.get(member.roles, name="Admin Serveur"):
+                members_with_role.append(member)
+        for channel in guild.channels:
+            if isinstance(channel, discord.TextChannel) and channel.name == 'agenda':
+                await recur_agenda(channel, members_with_role)
+
+
+
+async def recur_agenda(channel: discord.TextChannel, members_with_role: list):
+    for member in members_with_role:
+        try:
+            with open("login_promo.json") as jsonFile:
+                LoginPromoJson = json.load(jsonFile)
+                jsonFile.close()
+            if (str(member.id) in LoginPromoJson):
+                max_attempts = 3
+                firefox_options = Options()
+                firefox_options.add_argument("-private")
+                firefox_options.add_argument('-headless')
+                driver = webdriver.Firefox(options=firefox_options)
+
+                driver.set_window_size(1920, 1080)
+
+                for attempt in range(max_attempts):
+                    if attempt > 0:
+                        print(f"Tentative {attempt + 1}...")
+                    
+                    date = datetime.now().strftime("%m/%d/%Y")
+                    url = f'https://ws-edt-igs.wigorservices.net/WebPsDyn.aspx?action=posEDTLMS&serverID=G&date={date}'
+
+                    username = cryptocode.decrypt(LoginPromoJson[str(member.id)]["login"], DataJson['CRYPT'])
+                    password = cryptocode.decrypt(LoginPromoJson[str(member.id)]["mdp"], DataJson['CRYPT'])
+
+                    driver.get(url)
+
+                    username_input = driver.find_element(By.ID, 'username')
+                    password_input = driver.find_element(By.ID, 'password')
+                    submit_button = driver.find_element(By.NAME, "submitBtn")
+
+                    username_input.send_keys(username)
+                    password_input.send_keys(password)
+
+                    submit_button.click()
+
+                    wait = WebDriverWait(driver, 5)
+                    url_to_wait_for = "https://ws-edt-igs.wigorservices.net/WebPsDyn.aspx"
+                    wait.until(EC.url_contains(url_to_wait_for))
+
+
+                    if "Server Error in '/' Application." in driver.page_source:
+                        print("Erreur détectée dans le HTML. Relance du script...")
+                        driver.quit()
+                    else:
+                        driver.save_screenshot(f"Timeable.png")
+                        driver.quit()
+                        break
+                message_history = []
+                async for msg in channel.history(limit=100):
+                    message_history.append(msg)
+
+                for msg in message_history:
+                    if msg.author == client.user:
+                        print(msg.content)
+                        await msg.delete()
+                        break 
+                file = discord.File(f"Timeable.png")    
+                await channel.send(file=file)
+                if os.path.exists(f"Timeable.png"):
+                    os.remove(f"Timeable.png")
+                return
+        except Exception as e:
+            logging.error(f'Error in command "agenda": {e}', exc_info=True)
+            
+            await channel.send(content="Une erreur s'est produite lors de l'exécution de la commande.")
+            return       
 client.run(DataJson["DISCORD_TOKEN"])
