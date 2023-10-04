@@ -214,6 +214,7 @@ async def desenregistrer(ctx):
 
         keys_to_delete = []
 
+        refIdUnc = cryptocode.decrypt(LoginPromoJson[str(ctx.user.id)]['login'], DataJson['CRYPT'])
         refId = LoginPromoJson[str(ctx.user.id)]["login"]
         is_author = LoginPromoJson[user_id]['extend'] == False
 
@@ -230,10 +231,10 @@ async def desenregistrer(ctx):
                 with open('login_promo.json', 'w') as file:
                     json.dump(LoginPromoJson, file, indent=4)
 
-                await ctx.edit_original_response(content=f"Toutes les entrées avec l'identifiant '{cryptocode.decrypt(LoginPromoJson[str(ctx.user.id)]['login'], DataJson['CRYPT'])}' ont été supprimées avec succès")
+                await ctx.edit_original_response(content=f"Toutes les entrées avec l'identifiant '{refIdUnc}' ont été supprimées avec succès")
 
             else:
-                await ctx.edit_original_response(content=f"Aucune entrée avec l'identifiant '{cryptocode.decrypt(LoginPromoJson[str(ctx.user.id)]['login'], DataJson['CRYPT'])}' n'a été trouvée.")
+                await ctx.edit_original_response(content=f"Aucune entrée avec ton identifiant n'a été trouvée.")
         else:
             del LoginPromoJson[user_id]
             with open('login_promo.json', 'w') as file:
