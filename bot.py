@@ -6,6 +6,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.firefox.options import Options
 from datetime import datetime,timedelta
+from PIL import Image
 
 logging.basicConfig(filename='bot_errors.log', level=logging.ERROR, format='%(asctime)s [%(levelname)s]: %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
 intents = discord.Intents().all()
@@ -39,6 +40,10 @@ async def on_ready():
         await all_agenda_week_print()
 
 
+async def on_disconnect():
+    print('Disconnected from Discord, attempting to reconnect...')
+    await client.close()
+    await client.start(DataJson["DISCORD_TOKEN"])
 
 @tree.command(name = "agenda", description = "Affiche l'agenda pour la semaine")
 @app_commands.describe(date="Agenda a la date du : (au format jour/mois/année exemple : 05/04/2024)")
@@ -66,42 +71,42 @@ async def agenda(ctx, date:str = ""):
                 if attempt > 0:
                     print(f"Tentative {attempt + 1}...")
                 
-                url = f'https://ws-edt-igs.wigorservices.net/WebPsDyn.aspx?action=posEDTLMS&serverID=G&date={date}'
-
                 username = cryptocode.decrypt(LoginPromoJson[str(ctx.user.id)]["login"], DataJson['CRYPT'])
-                password = cryptocode.decrypt(LoginPromoJson[str(ctx.user.id)]["mdp"], DataJson['CRYPT'])
+                
+                url = DataJson['URL']
+                url += f'{username}&date={date}'
 
                 firefox_options = Options()
                 firefox_options.add_argument("-private")
                 firefox_options.add_argument('-headless')
-                driver = webdriver.Firefox(options=firefox_options)
+
+                def create_driver():
+                    return webdriver.Firefox(options=firefox_options)
+
+                loop = asyncio.get_event_loop()
+                driver = await loop.run_in_executor(None, create_driver)
 
                 driver.set_window_size(1920, 1080)
 
                 driver.get(url)
 
-                username_input = driver.find_element(By.ID, 'username')
-                password_input = driver.find_element(By.ID, 'password')
-                submit_button = driver.find_element(By.NAME, "submitBtn")
-
-                username_input.send_keys(username)
-                password_input.send_keys(password)
-
-                submit_button.click()
-
-                wait = WebDriverWait(driver, 5)
-                url_to_wait_for = "https://ws-edt-igs.wigorservices.net/WebPsDyn.aspx"
-                wait.until(EC.url_contains(url_to_wait_for))
-
-                if "Server Error in '/' Application." in driver.page_source:
+                if "Server Error in '/' Application." in driver.page_source or "Erreur de parametres" in driver.page_source:
                     print("Erreur détectée dans le HTML. Relance du script...")
                     driver.quit()
                 else:
                     driver.save_screenshot(f"Timeable.png")
                     driver.quit()
                     break
-            file = discord.File(f"Timeable.png")
                 
+            image = Image.open("Timeable.png")
+            pixels_a_rogner = 53
+            largeur, hauteur = image.size
+            image_rognée = image.crop((0, pixels_a_rogner, largeur, hauteur))
+            image_rognée.save("Timeable.png")
+            image.close()
+            
+            file = discord.File(f"Timeable.png")
+            
             user = client.get_user(ctx.user.id)
             await user.send(file=file)
             await ctx.edit_original_response(content="Ton emploi du temps t'as été envoyé en message ! Verifie bien que tu puisse recevoir des messages de ma part !")
@@ -133,7 +138,7 @@ async def accorder_droit_membre(ctx, membre: discord.Member):
             jsonFile.close()
         if (str(ctx.user.id) in LoginPromoJson):
             if (str(membre.id) not in LoginPromoJson):
-                nouvelle_entree = {str(membre.id): {"login" : LoginPromoJson[str(ctx.user.id)]["login"] ,"mdp" : LoginPromoJson[str(ctx.user.id)]["mdp"], "extend": True}}
+                nouvelle_entree = {str(membre.id): {"login" : LoginPromoJson[str(ctx.user.id)]["login"], "extend": True}}
 
                 LoginPromoJson.update(nouvelle_entree)
 
@@ -177,7 +182,7 @@ async def accorder_droit_role(ctx, role: discord.Role):
 
         for membre in role.members:
             if (str(membre.id) not in LoginPromoJson):
-                nouvelle_entree = {str(membre.id): {"login" : LoginPromoJson[str(ctx.user.id)]["login"] ,"mdp" : LoginPromoJson[str(ctx.user.id)]["mdp"], "extend": True}}
+                nouvelle_entree = {str(membre.id): {"login" : LoginPromoJson[str(ctx.user.id)]["login"] , "extend": True}}
 
                 LoginPromoJson.update(nouvelle_entree)
 
@@ -258,6 +263,7 @@ async def desenregistrer_error(ctx, error):
 @app_commands.checks.has_any_role('Team Pedago IPI', 'Team Entreprise IPI', 'Team Communication IPI', 'Directrice IPI', 'Admin Serveur')
 async def agenda_eleve(ctx, membre: discord.Member ,date:str = ""):
     try:
+        
         await ctx.response.send_message(content="J'y travaille... (cela peut prendre plusieurs secondes)", ephemeral=True)
 
         with open("login_promo.json") as jsonFile:
@@ -279,34 +285,25 @@ async def agenda_eleve(ctx, membre: discord.Member ,date:str = ""):
                 if attempt > 0:
                     print(f"Tentative {attempt + 1}...")
                 
-                url = f'https://ws-edt-igs.wigorservices.net/WebPsDyn.aspx?action=posEDTLMS&serverID=G&date={date}'
-
                 username = cryptocode.decrypt(LoginPromoJson[str(membre.id)]["login"], DataJson['CRYPT'])
-                password = cryptocode.decrypt(LoginPromoJson[str(membre.id)]["mdp"], DataJson['CRYPT'])
+                
+                url = DataJson['URL']
+                url += f'{username}&date={date}'
 
                 firefox_options = Options()
                 firefox_options.add_argument("-private")
                 firefox_options.add_argument('-headless')
-                driver = webdriver.Firefox(options=firefox_options)
+                def create_driver():
+                    return webdriver.Firefox(options=firefox_options)
+
+                loop = asyncio.get_event_loop()
+                driver = await loop.run_in_executor(None, create_driver)
 
                 driver.set_window_size(1920, 1080)
 
                 driver.get(url)
 
-                username_input = driver.find_element(By.ID, 'username')
-                password_input = driver.find_element(By.ID, 'password')
-                submit_button = driver.find_element(By.NAME, "submitBtn")
-
-                username_input.send_keys(username)
-                password_input.send_keys(password)
-
-                submit_button.click()
-
-                wait = WebDriverWait(driver, 5)
-                url_to_wait_for = "https://ws-edt-igs.wigorservices.net/WebPsDyn.aspx"
-                wait.until(EC.url_contains(url_to_wait_for))
-
-                if "Server Error in '/' Application." in driver.page_source:
+                if "Server Error in '/' Application." in driver.page_source or "Erreur de parametres" in driver.page_source:
                     print("Erreur détectée dans le HTML. Relance du script...")
                     driver.quit()
                 else:
@@ -314,13 +311,19 @@ async def agenda_eleve(ctx, membre: discord.Member ,date:str = ""):
                     driver.quit()
                     break
 
+            image = Image.open("Timeable.png")
+            pixels_a_rogner = 53
+            largeur, hauteur = image.size
+            image_rognée = image.crop((0, pixels_a_rogner, largeur, hauteur))
+            image_rognée.save("Timeable.png")
+            image.close()
+
             file = discord.File(f"Timeable.png")
             if os.path.exists(f"Timeable.png"):
                 try:
                     os.remove(f"Timeable.png")
                 except:
                     pass
-            
             await ctx.edit_original_response(content="L'emploi du temps de " + membre.nick + " a été envoyé par message!")
             user = client.get_user(ctx.user.id)
             await user.send(file=file, content=f"Voici l'emploi du temps de {membre.nick}")
@@ -339,10 +342,96 @@ async def agenda_eleve_error(ctx, error):
         await ctx.response.send_message(content="Tu n'as pas la permission d'effectuer cette commande !", ephemeral=True)
 
 
+
+@tree.command(name = "agenda_promo", description = "Affiche l'agenda pour la semaine")
+@app_commands.describe(role="Vous allez visiualiser l'agenda de cette promo si une personne s'est authentifiée (il est possible que l'emploi du temps soit celui d'une autre personne si elle lui a donnée l'acces a ce dernier)" ,date="Agenda a la date du : (au format jour/mois/année exemple : 05/04/2024)")
+@app_commands.checks.has_any_role('Team Pedago IPI', 'Team Entreprise IPI', 'Team Communication IPI', 'Directrice IPI', 'Admin Serveur')
+async def agenda_promo(ctx, role: discord.Role ,date:str = ""):
+    try:
+        await ctx.response.send_message(content="J'y travaille... (cela peut prendre plusieurs secondes)", ephemeral=True)
+        enregitre = False
+        with open("login_promo.json") as jsonFile:
+            LoginPromoJson = json.load(jsonFile)
+            jsonFile.close()
+        for membre in role.members:
+            if (str(membre.id) in LoginPromoJson):
+                enregitre = True
+                if date == "":
+                    date = datetime.now().strftime("%m/%d/%Y")
+                else:
+                    try:
+                        date = datetime.strptime(date, "%d/%m/%Y").date().strftime("%m/%d/%Y")
+                    except ValueError:
+                        await ctx.edit_original_response(content="Le format de la date fournit n'est pas valide la date doit etre le la forme jj/mm/aaaa")
+                
+                        return
+                max_attempts = 3
+
+                for attempt in range(max_attempts):
+                    if attempt > 0:
+                        print(f"Tentative {attempt + 1}...")
+                    
+                    username = cryptocode.decrypt(LoginPromoJson[str(membre.id)]["login"], DataJson['CRYPT'])
+                    
+                    url = DataJson['URL']
+                    url += f'{username}&date={date}'
+
+                    firefox_options = Options()
+                    firefox_options.add_argument("-private")
+                    firefox_options.add_argument('-headless')
+                    def create_driver():
+                        return webdriver.Firefox(options=firefox_options)
+
+                    loop = asyncio.get_event_loop()
+                    driver = await loop.run_in_executor(None, create_driver)
+
+                    driver.set_window_size(1920, 1080)
+
+                    driver.get(url)
+
+                    if "Server Error in '/' Application." in driver.page_source or "Erreur de parametres" in driver.page_source:
+                        print("Erreur détectée dans le HTML. Relance du script...")
+                        driver.quit()
+                    else:
+                        driver.save_screenshot(f"Timeable.png")
+                        driver.quit()
+                        break
+
+                image = Image.open("Timeable.png")
+                pixels_a_rogner = 53
+                largeur, hauteur = image.size
+                image_rognée = image.crop((0, pixels_a_rogner, largeur, hauteur))
+                image_rognée.save("Timeable.png")
+                image.close()
+
+                file = discord.File(f"Timeable.png")
+                if os.path.exists(f"Timeable.png"):
+                    try:
+                        os.remove(f"Timeable.png")
+                    except:
+                        pass
+                await ctx.edit_original_response(content="L'emploi du temps de " + membre.nick + " a été envoyé par message!")
+                user = client.get_user(ctx.user.id)
+                await user.send(file=file, content=f"Voici l'emploi du temps de {membre.nick}")
+        if not enregitre:
+            await ctx.edit_original_response(content="Personne ne possède d'identifiants enregitrés dans cette promo!")
+    except Exception as e:
+        logging.error(f'Error in command "agenda_promo": {e}', exc_info=True)
+        
+        await ctx.edit_original_response(content="Une erreur s'est produite lors de l'exécution de la commande.")
+        return
+
+
+@agenda_promo.error
+async def agenda_promo_error(ctx, error):
+    if isinstance(error, discord.app_commands.errors.MissingPermissions): 
+        await ctx.response.send_message(content="Tu n'as pas la permission d'effectuer cette commande !", ephemeral=True)
+
+
 @tree.command(name = "agenda_enregitrer", description = "S'enregitrer pour avoir acces a son emploi du temps sur discord")
-@app_commands.describe(identifiant="Identifiant de connection MonCampus", mdp="Mot de passe de connection MonCampus")
+@app_commands.describe(identifiant="Identifiant de connection MonCampus")
 @app_commands.checks.has_any_role('Team Pedago IPI', 'Team Entreprise IPI', 'Team Communication IPI', 'Directrice IPI', 'Admin Serveur','Apprenant IPI')
-async def enregitrer(ctx, identifiant: str, mdp : str):
+async def enregitrer(ctx, identifiant: str):
     try:
         await ctx.response.send_message(content="J'y travaille...", ephemeral=True)
 
@@ -350,7 +439,7 @@ async def enregitrer(ctx, identifiant: str, mdp : str):
             LoginPromoJson = json.load(jsonFile)
             jsonFile.close()
         if (str(ctx.user.id) not in LoginPromoJson):
-            nouvelle_entree = {str(ctx.user.id): {"login" : cryptocode.encrypt(identifiant, DataJson['CRYPT']) ,"mdp" : cryptocode.encrypt(mdp, DataJson['CRYPT']), "extend": False}}
+            nouvelle_entree = {str(ctx.user.id): {"login" : cryptocode.encrypt(identifiant, DataJson['CRYPT']), "extend": False}}
 
             LoginPromoJson.update(nouvelle_entree)
 
@@ -373,9 +462,9 @@ async def enregitrer_error(ctx, error):
 
 
 @tree.command(name="agenda_modifier", description="Modifier les identifiants enregistrés")
-@app_commands.describe(identifiant="Nouvel identifiant de connection MonCampus", mdp="Nouveau mot de passe de connection MonCampus")
+@app_commands.describe(identifiant="Nouvel identifiant de connection MonCampus")
 @app_commands.checks.has_any_role('Team Pedago IPI', 'Team Entreprise IPI', 'Team Communication IPI', 'Directrice IPI', 'Admin Serveur', 'Apprenant IPI')
-async def agenda_modifier(ctx, identifiant: str, mdp: str):
+async def agenda_modifier(ctx, identifiant: str):
     try:
         await ctx.response.send_message(content="J'y travaille...", ephemeral=True)
 
@@ -390,7 +479,6 @@ async def agenda_modifier(ctx, identifiant: str, mdp: str):
         for user_key, user_data in LoginPromoJson.items():
             if user_data["login"] == refId:
                 user_data['login'] = identifiant
-                user_data["mdp"] = mdp
                 updated_entries += 1
 
                 member = ctx.guild.get_member(int(user_key))
@@ -401,11 +489,7 @@ async def agenda_modifier(ctx, identifiant: str, mdp: str):
             with open('login_promo.json', 'w') as file:
                 json.dump(LoginPromoJson, file, indent=4)
 
-            if updated_nicknames:
-                nickname_list = ", ".join(updated_nicknames)
-                await ctx.edit_original_response(content=f"Le mot de passe de {updated_entries} entrées avec l'identifiant '{identifiant}' a été mis à jour avec succès. Les nicknames mis à jour sont : {nickname_list}")
-            else:
-                await ctx.edit_original_response(content=f"Le mot de passe de {updated_entries} entrées avec l'identifiant '{identifiant}' a été mis à jour avec succès, mais aucun utilisateur avec un nickname trouvé.")
+            await ctx.edit_original_response(content=f"Identifiant mit a jour avec succès")
 
         else:
             await ctx.edit_original_response(content="Aucun identifiant enregistré trouvé pour votre utilisateur.")
@@ -892,14 +976,14 @@ async def delete_channel_error(ctx, error):
 
 @tree.command(name = "supprimer_role", description = "Supprime le role a toutes les personnes ayant ce role")
 @app_commands.checks.has_permissions(administrator=True)
-@app_commands.describe(role="Role a retirere aux personnes", role2="Retirer le role seulement aux personnes ayant ce role")
-async def supprime_role(ctx, role : discord.Role, role2 : discord.Role = None):
+@app_commands.describe(role="Role a retirere aux personnes", role_condition="Retirer le role seulement aux personnes ayant ce role")
+async def supprime_role(ctx, role : discord.Role, role_condition : discord.Role = None):
     try:
         await ctx.response.send_message(content="J'y travaille...", ephemeral=True)
-        if role2 != None:
-            MembersMention = ', '.join([f"<@{m.id}>" for m in role.members if m in role2.members])
-            Members = ', '.join([m.display_name for m in role.members if m in role2.members])
-            [await m.remove_roles(role) for m in role.members if m in role2.members]
+        if role_condition != None:
+            MembersMention = ', '.join([f"<@{m.id}>" for m in role.members if m in role_condition.members])
+            Members = ', '.join([m.display_name for m in role.members if m in role_condition.members])
+            [await m.remove_roles(role) for m in role.members if m in role_condition.members]
         else:
             MembersMention = ', '.join([f"<@{m.id}>" for m in role.members])
             Members = ', '.join([m.display_name for m in role.members])
@@ -1110,8 +1194,8 @@ async def all_agenda_week_print():
                 members_with_role.append(member)
         for channel in guild.channels:
             if isinstance(channel, discord.TextChannel) and channel.name == 'agenda':
+                #await asyncio.to_thread(recur_agenda, channel, members_with_role)
                 await recur_agenda(channel, members_with_role)
-
 
 
 async def recur_agenda(channel: discord.TextChannel, members_with_role: list):
@@ -1125,7 +1209,11 @@ async def recur_agenda(channel: discord.TextChannel, members_with_role: list):
                 firefox_options = Options()
                 firefox_options.add_argument("-private")
                 firefox_options.add_argument('-headless')
-                driver = webdriver.Firefox(options=firefox_options)
+                def create_driver():
+                    return webdriver.Firefox(options=firefox_options)
+
+                loop = asyncio.get_event_loop()
+                driver = await loop.run_in_executor(None, create_driver)
 
                 driver.set_window_size(1920, 1080)
 
@@ -1134,28 +1222,25 @@ async def recur_agenda(channel: discord.TextChannel, members_with_role: list):
                         print(f"Tentative {attempt + 1}...")
                     
                     date = datetime.now().strftime("%m/%d/%Y")
-                    url = f'https://ws-edt-igs.wigorservices.net/WebPsDyn.aspx?action=posEDTLMS&serverID=G&date={date}'
-
                     username = cryptocode.decrypt(LoginPromoJson[str(member.id)]["login"], DataJson['CRYPT'])
-                    password = cryptocode.decrypt(LoginPromoJson[str(member.id)]["mdp"], DataJson['CRYPT'])
+                
+                    url = DataJson['URL']
+                    url += f'{username}&date={date}'
+
+                    firefox_options = Options()
+                    firefox_options.add_argument("-private")
+                    firefox_options.add_argument('-headless')
+                    def create_driver():
+                        return webdriver.Firefox(options=firefox_options)
+
+                    loop = asyncio.get_event_loop()
+                    driver = await loop.run_in_executor(None, create_driver)
+
+                    driver.set_window_size(1920, 1080)
 
                     driver.get(url)
 
-                    username_input = driver.find_element(By.ID, 'username')
-                    password_input = driver.find_element(By.ID, 'password')
-                    submit_button = driver.find_element(By.NAME, "submitBtn")
-
-                    username_input.send_keys(username)
-                    password_input.send_keys(password)
-
-                    submit_button.click()
-
-                    wait = WebDriverWait(driver, 5)
-                    url_to_wait_for = "https://ws-edt-igs.wigorservices.net/WebPsDyn.aspx"
-                    wait.until(EC.url_contains(url_to_wait_for))
-
-
-                    if "Server Error in '/' Application." in driver.page_source:
+                    if "Server Error in '/' Application." in driver.page_source or "Erreur de parametres" in driver.page_source:                        
                         print("Erreur détectée dans le HTML. Relance du script...")
                         driver.quit()
                     else:
@@ -1168,9 +1253,16 @@ async def recur_agenda(channel: discord.TextChannel, members_with_role: list):
 
                 for msg in message_history:
                     if msg.author == client.user:
-                        print(msg.content)
                         await msg.delete()
                         break 
+                
+                image = Image.open("Timeable.png")
+                pixels_a_rogner = 53
+                largeur, hauteur = image.size
+                image_rognée = image.crop((0, pixels_a_rogner, largeur, hauteur))
+                image_rognée.save("Timeable.png")
+                image.close()
+
                 file = discord.File(f"Timeable.png")    
                 await channel.send(file=file)
                 if os.path.exists(f"Timeable.png"):
