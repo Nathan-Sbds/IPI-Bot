@@ -1,6 +1,4 @@
-/date.json
-/test.csv
-/test1.csv
 *.json
 *.png
 *.log
+*.db

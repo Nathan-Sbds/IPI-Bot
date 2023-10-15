@@ -1,12 +1,12 @@
-import discord,re,json,urllib.request,os,logging,cryptocode,asyncio
+import discord,re,json,urllib.request,os,logging,cryptocode,asyncio,sqlite3
 from discord import app_commands
-from selenium import webdriver
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.firefox.options import Options
+import pyppeteer
 from datetime import datetime,timedelta
 from PIL import Image
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+
 
 logging.basicConfig(filename='bot_errors.log', level=logging.ERROR, format='%(asctime)s [%(levelname)s]: %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
 intents = discord.Intents().all()
@@ -17,6 +17,58 @@ with open("data.json") as jsonFile:
     DataJson = json.load(jsonFile)
     jsonFile.close()
 
+custom_css = """
+    .Teams {
+        display: none !important;
+    }
+    """
+path_exe_chromium = '/usr/bin/chromium-browser'
+
+connection = sqlite3.connect("emploi_du_temps.db")
+cursor = connection.cursor()
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS emploi_du_temps (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    image_data BLOB,
+    discord_id INTEGER,
+    channel_id INTEGER
+)
+""")
+connection.commit()
+connection.close()
+
+
+def send_mail(errorBot, command):
+
+    smtp_server = 'smtp.gmail.com'
+    smtp_port = 587
+    smtp_username = cryptocode.decrypt(DataJson["MAIL_ID"], DataJson['CRYPT'])
+                
+    smtp_password = cryptocode.decrypt(DataJson["MAIL_MDP"], DataJson['CRYPT'])
+
+    smtp = smtplib.SMTP(smtp_server, smtp_port)
+
+    smtp.starttls()
+
+    smtp.login(smtp_username, smtp_password)
+
+    sender_email = 'IPI Bot'
+    recipient_email = DataJson["SEND_TO"]
+    subject = '[IPI Bot] Une erreur est survenue'
+    message_text = f'Une erreur est survenue le {datetime.now().strftime("%d/%m/%Y")} à {datetime.now().strftime("%H:%M:%S")} dans la commande "{command}" : \n\n{errorBot}'
+
+    msg = MIMEMultipart()
+    msg['From'] = sender_email
+    msg['To'] = recipient_email
+    msg['Subject'] = subject
+
+    msg.attach(MIMEText(message_text, 'plain'))
+
+    smtp.sendmail(sender_email, recipient_email, msg.as_string())
+
+    smtp.quit()
+
+
 @client.event
 async def on_ready():
     await client.change_presence(status=discord.Status.online, activity=discord.Game("Gerer les choses..."))
@@ -25,15 +77,18 @@ async def on_ready():
 
     while not client.is_closed():
         now = datetime.now()
-        next_execution_time = datetime(now.year, now.month, now.day, 4,0,0)
-        if now.weekday() > 0:
-            days_until_monday = 7 - now.weekday()
-            next_execution_time += timedelta(days=days_until_monday)
+        next_execution_time_5h = datetime(now.year, now.month, now.day, 5, 0, 0)
+        next_execution_time_11h = datetime(now.year, now.month, now.day, 11, 0, 0)
         
-        if next_execution_time < now:
-            next_execution_time += timedelta(weeks=1)
-
-        delta = next_execution_time - now
+        if now < next_execution_time_5h:
+            delta = next_execution_time_5h - now
+        elif now < next_execution_time_11h:
+            delta = next_execution_time_11h - now
+        else:
+            tomorrow = now + timedelta(days=1)
+            next_execution_time_5h = datetime(tomorrow.year, tomorrow.month, tomorrow.day, 5, 0, 0)
+            delta = next_execution_time_5h - now
+        
         seconds_until_execution = delta.total_seconds()
 
         await asyncio.sleep(seconds_until_execution)
@@ -50,8 +105,7 @@ async def on_disconnect():
 @app_commands.checks.has_any_role('Team Pedago IPI', 'Team Entreprise IPI', 'Team Communication IPI', 'Directrice IPI', 'Admin Serveur','Apprenant IPI')
 async def agenda(ctx, date:str = ""):
     try:
-        await ctx.response.send_message(content="J'y travaille... (cela peut prendre plusieurs secondes)", ephemeral=True)
-
+        await ctx.response.send_message(content="J'y travaille...", ephemeral=True)
         with open("login_promo.json") as jsonFile:
             LoginPromoJson = json.load(jsonFile)
             jsonFile.close()
@@ -72,34 +126,31 @@ async def agenda(ctx, date:str = ""):
                     print(f"Tentative {attempt + 1}...")
                 
                 username = cryptocode.decrypt(LoginPromoJson[str(ctx.user.id)]["login"], DataJson['CRYPT'])
-                
+
                 url = DataJson['URL']
                 url += f'{username}&date={date}'
+                
+                browser = await pyppeteer.launch(executablePath=path_exe_chromium)
+                page = await browser.newPage()
+                await page.setViewport({'width': 1920, 'height': 1080})
 
-                firefox_options = Options()
-                firefox_options.add_argument("-private")
-                firefox_options.add_argument('-headless')
+                await page.goto(url)
+                
+                await page.addStyleTag({'content': custom_css})
 
-                def create_driver():
-                    return webdriver.Firefox(options=firefox_options)
+                await page.waitForSelector("body")
 
-                loop = asyncio.get_event_loop()
-                driver = await loop.run_in_executor(None, create_driver)
-
-                driver.set_window_size(1920, 1080)
-
-                driver.get(url)
-
-                if "Server Error in '/' Application." in driver.page_source or "Erreur de parametres" in driver.page_source:
+                page_source = await page.content()
+                if "Server Error in '/' Application." in page_source or "Erreur de parametres" in page_source:
                     print("Erreur détectée dans le HTML. Relance du script...")
-                    driver.quit()
+                    await browser.close()
                 else:
-                    driver.save_screenshot(f"Timeable.png")
-                    driver.quit()
+                    await page.screenshot({'path': 'Timeable.png'})
+                    await browser.close()
                     break
                 
             image = Image.open("Timeable.png")
-            pixels_a_rogner = 53
+            pixels_a_rogner = 66
             largeur, hauteur = image.size
             image_rognée = image.crop((0, pixels_a_rogner, largeur, hauteur))
             image_rognée.save("Timeable.png")
@@ -116,14 +167,14 @@ async def agenda(ctx, date:str = ""):
             await ctx.edit_original_response(content="Tu ne possède pas d'identifiants enregitrés, pour cela tu peux effectuer /agenda_enregitrer !")
     except Exception as e:
         logging.error(f'Error in command "agenda": {e}', exc_info=True)
-        
-        await ctx.edit_original_response(content="Une erreur s'est produite lors de l'exécution de la commande.")
+        send_mail(e,"agenda")
+        await ctx.response.send_message(content="Une erreur s'est produite lors de l'exécution de la commande.", ephemeral=True)
         return
 
 @agenda.error
 async def agenda_error(ctx, error):
     if isinstance(error, discord.app_commands.errors.MissingPermissions): 
-        await ctx.response.send_message(content="Tu n'as pas la permission d'effectuer cette commande !", ephemeral=True)
+        await ctx.edit_original_response(content="Tu n'as pas la permission d'effectuer cette commande !")
 
 
 @tree.command(name = "agenda_accorder_droit_membre", description = "Donne le droit d'acceder a votre emploi du temps a la personne ciblée (de preference de votre promo)")
@@ -153,7 +204,7 @@ async def accorder_droit_membre(ctx, membre: discord.Member):
         
     except Exception as e:
         logging.error(f'Error in command "accorder_droit_membre": {e}', exc_info=True)
-        
+        send_mail(e,"accorder_droit_membre")
         await ctx.edit_original_response(content="Une erreur s'est produite lors de l'exécution de la commande.")
         return
 
@@ -193,7 +244,7 @@ async def accorder_droit_role(ctx, role: discord.Role):
 
     except Exception as e:
         logging.error(f'Error in command "accorder_droit_role": {e}', exc_info=True)
-        
+        send_mail(e,"accorder_droit_role")
         await ctx.edit_original_response(content="Une erreur s'est produite lors de l'exécution de la commande.")
         return
 
@@ -248,7 +299,7 @@ async def desenregistrer(ctx):
 
     except Exception as e:
         logging.error(f'Error in command "desenregistrer": {e}', exc_info=True)
-
+        send_mail(e,"desenregitrer")
         await ctx.edit_original_response(content="Une erreur s'est produite lors de l'exécution de la commande.")
 
 @desenregistrer.error
@@ -285,34 +336,31 @@ async def agenda_eleve(ctx, membre: discord.Member ,date:str = ""):
                 if attempt > 0:
                     print(f"Tentative {attempt + 1}...")
                 
-                username = cryptocode.decrypt(LoginPromoJson[str(membre.id)]["login"], DataJson['CRYPT'])
-                
+                username = cryptocode.decrypt(LoginPromoJson[str(ctx.user.id)]["login"], DataJson['CRYPT'])
+
                 url = DataJson['URL']
                 url += f'{username}&date={date}'
+                
+                browser = await pyppeteer.launch(executablePath=path_exe_chromium)
+                page = await browser.newPage()
+                await page.setViewport({'width': 1920, 'height': 1080})
 
-                firefox_options = Options()
-                firefox_options.add_argument("-private")
-                firefox_options.add_argument('-headless')
-                def create_driver():
-                    return webdriver.Firefox(options=firefox_options)
+                await page.goto(url)
+                await page.addStyleTag({'content': custom_css})
+                
+                await page.waitForSelector("body")
 
-                loop = asyncio.get_event_loop()
-                driver = await loop.run_in_executor(None, create_driver)
-
-                driver.set_window_size(1920, 1080)
-
-                driver.get(url)
-
-                if "Server Error in '/' Application." in driver.page_source or "Erreur de parametres" in driver.page_source:
+                page_source = await page.content()
+                if "Server Error in '/' Application." in page_source or "Erreur de parametres" in page_source:
                     print("Erreur détectée dans le HTML. Relance du script...")
-                    driver.quit()
+                    await browser.close()
                 else:
-                    driver.save_screenshot(f"Timeable.png")
-                    driver.quit()
+                    await page.screenshot({'path': 'Timeable.png'})
+                    await browser.close()
                     break
-
+                
             image = Image.open("Timeable.png")
-            pixels_a_rogner = 53
+            pixels_a_rogner = 66
             largeur, hauteur = image.size
             image_rognée = image.crop((0, pixels_a_rogner, largeur, hauteur))
             image_rognée.save("Timeable.png")
@@ -331,7 +379,7 @@ async def agenda_eleve(ctx, membre: discord.Member ,date:str = ""):
             await ctx.edit_original_response(content="Cette personne ne possède pas d'identifiants enregitrés !")
     except Exception as e:
         logging.error(f'Error in command "agenda_eleve": {e}', exc_info=True)
-        
+        send_mail(e,"agenda_eleve")
         await ctx.edit_original_response(content="Une erreur s'est produite lors de l'exécution de la commande.")
         return
 
@@ -371,34 +419,31 @@ async def agenda_promo(ctx, role: discord.Role ,date:str = ""):
                     if attempt > 0:
                         print(f"Tentative {attempt + 1}...")
                     
-                    username = cryptocode.decrypt(LoginPromoJson[str(membre.id)]["login"], DataJson['CRYPT'])
-                    
+                    username = cryptocode.decrypt(LoginPromoJson[str(ctx.user.id)]["login"], DataJson['CRYPT'])
+
                     url = DataJson['URL']
                     url += f'{username}&date={date}'
+                    
+                    browser = await pyppeteer.launch(executablePath=path_exe_chromium)
+                    page = await browser.newPage()
+                    await page.setViewport({'width': 1920, 'height': 1080})
 
-                    firefox_options = Options()
-                    firefox_options.add_argument("-private")
-                    firefox_options.add_argument('-headless')
-                    def create_driver():
-                        return webdriver.Firefox(options=firefox_options)
+                    await page.goto(url)
+                    await page.addStyleTag({'content': custom_css})
+                
+                    await page.waitForSelector("body")
 
-                    loop = asyncio.get_event_loop()
-                    driver = await loop.run_in_executor(None, create_driver)
-
-                    driver.set_window_size(1920, 1080)
-
-                    driver.get(url)
-
-                    if "Server Error in '/' Application." in driver.page_source or "Erreur de parametres" in driver.page_source:
+                    page_source = await page.content()
+                    if "Server Error in '/' Application." in page_source or "Erreur de parametres" in page_source:
                         print("Erreur détectée dans le HTML. Relance du script...")
-                        driver.quit()
+                        await browser.close()
                     else:
-                        driver.save_screenshot(f"Timeable.png")
-                        driver.quit()
+                        await page.screenshot({'path': 'Timeable.png'})
+                        await browser.close()
                         break
-
+                    
                 image = Image.open("Timeable.png")
-                pixels_a_rogner = 53
+                pixels_a_rogner = 66
                 largeur, hauteur = image.size
                 image_rognée = image.crop((0, pixels_a_rogner, largeur, hauteur))
                 image_rognée.save("Timeable.png")
@@ -417,7 +462,7 @@ async def agenda_promo(ctx, role: discord.Role ,date:str = ""):
             await ctx.edit_original_response(content="Personne ne possède d'identifiants enregitrés dans cette promo!")
     except Exception as e:
         logging.error(f'Error in command "agenda_promo": {e}', exc_info=True)
-        
+        send_mail(e,"agenda_promo")
         await ctx.edit_original_response(content="Une erreur s'est produite lors de l'exécution de la commande.")
         return
 
@@ -451,7 +496,7 @@ async def enregitrer(ctx, identifiant: str):
             await ctx.edit_original_response(content="Vous posséder deja des identifiants enregistrés")
     except Exception as e:
         logging.error(f'Error in command "enregitrer": {e}', exc_info=True)
-        
+        send_mail(e,"enregistrer")
         await ctx.edit_original_response(content="Une erreur s'est produite lors de l'exécution de la commande.")
         return
 
@@ -496,7 +541,7 @@ async def agenda_modifier(ctx, identifiant: str):
 
     except Exception as e:
         logging.error(f'Error in command "agenda_modifier": {e}', exc_info=True)
-
+        send_mail(e,"agenda_modifier")
         await ctx.edit_original_response(content="Une erreur s'est produite lors de l'exécution de la commande.")
 
 @agenda_modifier.error
@@ -533,7 +578,7 @@ async def retirer_droit_membre(ctx, membre: discord.Member):
             await ctx.edit_original_response(content="Vous ne posséder pas d'identifiants enregistrés identifiants")
     except Exception as e:
         logging.error(f'Error in command "retirer_droit_membre": {e}', exc_info=True)
-        
+        send_mail(e,"retirer_droit_membre")
         await ctx.edit_original_response(content="Une erreur s'est produite lors de l'exécution de la commande.")
         return
 
@@ -572,7 +617,7 @@ async def retirer_droit_role(ctx, role: discord.Role):
 
     except Exception as e:
         logging.error(f'Error in command "retirer_droit_role": {e}', exc_info=True)
-        
+        send_mail(e,"retirer_droit_role")
         await ctx.edit_original_response(content="Une erreur s'est produite lors de l'exécution de la commande.")
         return
 
@@ -607,6 +652,7 @@ async def voir_membres_droit(ctx):
         
     except Exception as e:
         logging.error(f'Error in command "voir_membres_droit": {e}', exc_info=True)
+        send_mail(e,"voir_membres_droit")
         await ctx.response.send_message(content="Une erreur s'est produite lors de l'exécution de la commande.", ephemeral=True)
 
 
@@ -716,11 +762,12 @@ async def assign_role(ctx, fichier: discord.Attachment, supprimer : bool, role :
                 await user.send(content=(f'Role donné à : {NewMenberTxt}\n\nPersonnes non trouvée(s) : {not_found}'))
 
         except Exception as e:
-
+            send_mail(e,"assign_role")
             print(e)
             await ctx.edit_original_response(content=("Fichier illisible (.csv)"))
     except Exception as e:
         logging.error(f'Error in command "assign_role": {e}', exc_info=True)
+        send_mail(e,"assign_role")
         await ctx.edit_original_response(content="Une erreur s'est produite lors de l'exécution de la commande.")
         return
 
@@ -765,20 +812,20 @@ async def create_category(ctx, nom_categorie : str, role : discord.Role, role2 :
                 await category_object.set_permissions(target=role2, read_messages=True, send_messages=True, connect=True, speak=True)
 
             await category_object.set_permissions(ctx.guild.default_role, read_messages=False, connect=False)
-
-            await server.create_text_channel(name="général-"+nom_categorie.lower(),category=category_object)
             
             pedago = discord.utils.get(ctx.guild.roles,name="Team Pedago IPI")
             communication = discord.utils.get(ctx.guild.roles,name="Team Communication IPI")
             entreprise = discord.utils.get(ctx.guild.roles,name="Team Entreprise IPI")
             directrice = discord.utils.get(ctx.guild.roles,name="Directrice IPI")
             
-            await server.create_text_channel(name="général-"+nom_categorie.lower(),category=category_object)
+            general = await server.create_text_channel(name="général-"+nom_categorie.lower(),category=category_object)
             await discord.utils.get(ctx.guild.channels, name="général-"+nom_categorie.lower()).set_permissions(target=pedago, read_messages=True, send_messages=True, connect=True, speak=True)
             await discord.utils.get(ctx.guild.channels, name="général-"+nom_categorie.lower()).set_permissions(target=communication, read_messages=True, send_messages=True, connect=True, speak=True)
             await discord.utils.get(ctx.guild.channels, name="général-"+nom_categorie.lower()).set_permissions(target=entreprise, read_messages=True, send_messages=True, connect=True, speak=True)
             await discord.utils.get(ctx.guild.channels, name="général-"+nom_categorie.lower()).set_permissions(target=directrice, read_messages=True, send_messages=True, connect=True, speak=True)    
             
+            await general.clone(name="agenda")
+
             await server.create_text_channel(name="pédago-"+nom_categorie.lower(),category=category_object)
             await discord.utils.get(ctx.guild.channels, name="pédago-"+nom_categorie.lower()).set_permissions(target=pedago, read_messages=True, send_messages=True, connect=True, speak=True)
 
@@ -793,7 +840,7 @@ async def create_category(ctx, nom_categorie : str, role : discord.Role, role2 :
                 await ctx.edit_original_response(content=(f'Catégorie {name_cat.upper()} créee pour {role} et {role2} !'))
     except Exception as e:
         logging.error(f'Error in command "create_category": {e}', exc_info=True)
-        
+        send_mail(e,"create_category")
         await ctx.edit_original_response(content="Une erreur s'est produite lors de l'exécution de la commande.")
         return
 
@@ -838,7 +885,7 @@ async def create_channel(ctx, nom_channel : str, nom_categorie : str):
             await ctx.edit_original_response(content=(f'Channel {nom_channel.lower()} créé dans la catégorie {name_cat.upper()} !'))
     except Exception as e:
         logging.error(f'Error in command "create_channel": {e}', exc_info=True)
-        
+        send_mail(e,"create_channel")
         await ctx.edit_original_response(content="Une erreur s'est produite lors de l'exécution de la commande.")
         return
 
@@ -894,7 +941,7 @@ async def delete_category(ctx, nom_categorie : str):
                     except discord.errors.NotFound as e:
                         
                         print(e)
-                        
+                        send_mail(e,"delete_category")
                     await ctx.edit_original_response(content=(f'Catégorie {name_cat.upper()} supprimée !'))
                 
             except AttributeError:
@@ -902,6 +949,7 @@ async def delete_category(ctx, nom_categorie : str):
                 await ctx.edit_original_response(content=(f"La catégorie {name_cat.upper()} n'existe pas !"))
     except Exception as e:
         logging.error(f'Error in command "delete_category": {e}', exc_info=True)
+        send_mail(e,"delete_category")
         await ctx.edit_original_response(content="Une erreur s'est produite lors de l'exécution de la commande.")
         return
 
@@ -958,12 +1006,12 @@ async def delete_channel(ctx, nom_channel : str, nom_categorie : str):
                     await ctx.edit_original_response(content=(f'Channel {nom_channel.lower()} supprimé dans la catégorie {name_cat.upper()} !'))
                 
             except AttributeError as e:
-
+                send_mail(e,"delete_channel")
                 print(e)
                 await ctx.edit_original_response(content=(f"Channel {nom_channel.lower()} n'éxiste pas dans la catégorie {name_cat.upper()}"))
     except Exception as e:
         logging.error(f'Error in command "delete_channel": {e}', exc_info=True)
-        
+        send_mail(e,"delete_channel")
         await ctx.edit_original_response(content="Une erreur s'est produite lors de l'exécution de la commande.")
         return
 
@@ -995,7 +1043,7 @@ async def supprime_role(ctx, role : discord.Role, role_condition : discord.Role 
 
     except Exception as e:
         logging.error(f'Error in command "supprime_role": {e}', exc_info=True)
-        
+        send_mail(e,"supprime_role")
         await ctx.edit_original_response(content="Une erreur s'est produite lors de l'exécution de la commande.")
         return
 
@@ -1084,11 +1132,12 @@ async def transfert_category(ctx, ancien_nom_categorie:str, nouveau_nom_categori
                 await ctx.edit_original_response(content=f'La catégorie {ancien_nom_categorie} a bien été transferer du rôle {ancien_role.name} au role {nouveau_role.name}')
 
             except Exception as e:
+                send_mail(e,"transfert_category")
                 await ctx.edit_original_response(content=f'Une erreur est survenue, veuillez verifier que tous les paramètres sont correctes puis rééssayez. Si le problème persiste veuillez contacter Nathan SABOT DRESSY')
                 print(e)
     except Exception as e:
         logging.error(f'Error in command "transfert_category": {e}', exc_info=True)
-        
+        send_mail(e,"transfert_category")
         await ctx.edit_original_response(content="Une erreur s'est produite lors de l'exécution de la commande.")
         return
 
@@ -1138,7 +1187,7 @@ async def transfert_role(ctx, ancien_role : discord.Role, nouveau_role : discord
             await user.send(content=(f'Role donné à : {NewMenberTxt}'))
     except Exception as e:
         logging.error(f'Error in command "transfert_role": {e}', exc_info=True)
-        
+        send_mail(e,"transfert_role")
         await ctx.edit_original_response(content="Une erreur s'est produite lors de l'exécution de la commande.")
         return
 
@@ -1172,8 +1221,8 @@ async def categories(ctx):
                 return
             
         except Exception as e:
-            logging.error(f'Error in command "erreur_commande": {e}', exc_info=True)
-            
+            logging.error(f'Error in command "print_categories": {e}', exc_info=True)
+            send_mail(e,"print_categories")
             await ctx.edit_original_response(content="Une erreur s'est produite lors de l'exécution de la commande.")
             return
     except discord.app_commands.errors.MissingPermissions:
@@ -1188,15 +1237,14 @@ async def all_agenda_week_print():
 
     for guild in client.guilds:
         members_with_role = []
-
+        func_to_do = []
         for member in guild.members:
             if discord.utils.get(member.roles, name="Apprenant IPI") and not discord.utils.get(member.roles, name="Admin Serveur"):
                 members_with_role.append(member)
         for channel in guild.channels:
             if isinstance(channel, discord.TextChannel) and channel.name == 'agenda':
-                #await asyncio.to_thread(recur_agenda, channel, members_with_role)
-                await recur_agenda(channel, members_with_role)
-
+                func_to_do.append(asyncio.ensure_future(recur_agenda(channel, members_with_role)))
+        await asyncio.gather(*func_to_do)
 
 async def recur_agenda(channel: discord.TextChannel, members_with_role: list):
     for member in members_with_role:
@@ -1206,62 +1254,69 @@ async def recur_agenda(channel: discord.TextChannel, members_with_role: list):
                 jsonFile.close()
             if (str(member.id) in LoginPromoJson):
                 max_attempts = 3
-                firefox_options = Options()
-                firefox_options.add_argument("-private")
-                firefox_options.add_argument('-headless')
-                def create_driver():
-                    return webdriver.Firefox(options=firefox_options)
-
-                loop = asyncio.get_event_loop()
-                driver = await loop.run_in_executor(None, create_driver)
-
-                driver.set_window_size(1920, 1080)
 
                 for attempt in range(max_attempts):
                     if attempt > 0:
                         print(f"Tentative {attempt + 1}...")
                     
-                    date = datetime.now().strftime("%m/%d/%Y")
+                    date = (datetime.now() + timedelta(days=1)).strftime("%m/%d/%Y")
                     username = cryptocode.decrypt(LoginPromoJson[str(member.id)]["login"], DataJson['CRYPT'])
-                
+
                     url = DataJson['URL']
                     url += f'{username}&date={date}'
+                    
+                    browser = await pyppeteer.launch(executablePath=path_exe_chromium)
+                    page = await browser.newPage()
+                    await page.setViewport({'width': 1920, 'height': 1080})
 
-                    firefox_options = Options()
-                    firefox_options.add_argument("-private")
-                    firefox_options.add_argument('-headless')
-                    def create_driver():
-                        return webdriver.Firefox(options=firefox_options)
+                    await page.goto(url)
+                    await page.addStyleTag({'content': custom_css})
+                
+                    await page.waitForSelector("body")
 
-                    loop = asyncio.get_event_loop()
-                    driver = await loop.run_in_executor(None, create_driver)
-
-                    driver.set_window_size(1920, 1080)
-
-                    driver.get(url)
-
-                    if "Server Error in '/' Application." in driver.page_source or "Erreur de parametres" in driver.page_source:                        
+                    page_source = await page.content()
+                    if "Server Error in '/' Application." in page_source or "Erreur de parametres" in page_source:
                         print("Erreur détectée dans le HTML. Relance du script...")
-                        driver.quit()
+                        await browser.close()
                     else:
-                        driver.save_screenshot(f"Timeable.png")
-                        driver.quit()
+                        await page.screenshot({'path': 'Timeable.png'})
+                        await browser.close()
                         break
-                message_history = []
-                async for msg in channel.history(limit=100):
-                    message_history.append(msg)
-
-                for msg in message_history:
-                    if msg.author == client.user:
-                        await msg.delete()
-                        break 
+                
                 
                 image = Image.open("Timeable.png")
-                pixels_a_rogner = 53
+                pixels_a_rogner = 66
                 largeur, hauteur = image.size
                 image_rognée = image.crop((0, pixels_a_rogner, largeur, hauteur))
                 image_rognée.save("Timeable.png")
                 image.close()
+
+                image_data = open(f"Timeable.png", "rb").read()
+                connection = sqlite3.connect("emploi_du_temps.db")
+                cursor = connection.cursor()
+
+                cursor.execute("SELECT id FROM emploi_du_temps WHERE image_data = ? AND channel_id = ?", (image_data,channel.id,))
+                existing_row = cursor.fetchone()
+
+                if existing_row:
+                    connection.commit()
+                    connection.close()
+                    return
+                
+                else:
+                    cursor.execute("DELETE FROM emploi_du_temps WHERE discord_id = ? AND channel_id = ?", (member.id,channel.id,))
+                    cursor.execute("INSERT INTO emploi_du_temps (image_data, discord_id, channel_id) VALUES (?, ?, ?)", (image_data, member.id, channel.id,))
+                    connection.commit()
+                    connection.close()
+                    message_history = []
+                    async for msg in channel.history(limit=100):
+                        message_history.append(msg)
+
+                    for msg in message_history:
+                        if msg.author == client.user:
+                            await msg.delete()
+                            break 
+                
 
                 file = discord.File(f"Timeable.png")    
                 await channel.send(file=file)
@@ -1269,8 +1324,10 @@ async def recur_agenda(channel: discord.TextChannel, members_with_role: list):
                     os.remove(f"Timeable.png")
                 return
         except Exception as e:
-            logging.error(f'Error in command "agenda": {e}', exc_info=True)
-            
+            print(e)
+            logging.error(f'Error in command "agenda_recur": {e}', exc_info=True)
+            send_mail(e,"agenda_recur")
             await channel.send(content="Une erreur s'est produite lors de l'exécution de la commande.")
-            return       
+            return    
+
 client.run(DataJson["DISCORD_TOKEN"])
