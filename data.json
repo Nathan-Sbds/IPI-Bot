@@ -1,0 +1,8 @@
+{
+    "DISCORD_TOKEN": "token du bot discord",
+    "CRYPT":"clé de chiffrement",
+    "URL":"url de l'emploi du temps sans l'identifiant et la date",
+    "MAIL_ID": "identifiant email crypté avec la clé",
+"MAIL_MDP":"mdp email crypté avec la clé",
+"SEND_TO":"email ou envoyer les erreurs"
+}
