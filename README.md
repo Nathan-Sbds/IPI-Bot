@@ -1,28 +1,38 @@
 Il est necessaire de mettre un Token à ce bot dans le data.json. A la premiere execution, le bot peut mettre une periode pouvant aller jusqu'a plusieurs dizaine de minutes avant d'afficher les commandes dans discord. Cela est normal lors de sa première execution, les éxecutions suivantes seront beaucoup plus rapide si aucun changement structurel n'est effectué.
 
-Le bot possède 19 commandes :
-
-	- /agenda (date)
-
-	- /agenda_accorder_droit_membre [membre]
-
-	- /agenda_accorder_droit_role [role]
-
-	- /agenda_desenregitrer
-
-	- /agenda_eleve [membre] (date)
-
-	- /agenda_enregitrer [identifiant] [mdp]
-
-	- /agenda_modifier [identifiant] [mdp]
-
-	- /agenda_retirer_droit_membre [membre]
-	
-	- /agenda_retirer_droit_role [role]
-
-	- /agenda_voir_partage_droit
+Le bot possède 30 commandes :
 
 	- /assigner_role [fichier] [supprimer] [role] (role2) (role3)
+
+	- /atelier_activer
+
+	- /atelier_ajouter [titre] [description]
+
+	- /atelier_ajouter_role [role1] (role2) (role3) (role4) (role5) (role6) (role7) (role8) (role9) (role10)
+
+	- /atelier_config
+
+	- /atelier_desactiver
+
+	- /atelier_inscriptions
+
+	- /atelier_label_bouton [button_label]
+
+	- /atelier_liste_role
+
+	- /atelier_max_inscription [max_inscription]
+
+	- /atelier_max_inscrits [max_inscrits]
+
+	- /atelier_max_inscrits_promo [max_inscrits]
+
+	- /atelier_non_inscriptions
+
+	- /atelier_relance
+
+	- /atelier_retirer_role [role1] (role2) (role3) (role4) (role5) (role6) (role7) (role8) (role9) (role10)
+
+	- /atelier_supprimer
 
 	- /creer_categorie [nom_categorie] [role] (role2)
 
@@ -40,252 +50,11 @@ Le bot possède 19 commandes :
 
 	- /transferer_role [ancien_role] [nouveau_role] [supprimer]
 
+	- /vote_ajouter_image [image]
 
+	- /vote_resultats
 
-
-# /agenda
-
-Cette commande permet d'afficher l'agenda de la semaine pour une date spécifiée.
-
-#### Exemple d'utilisation : 
-
-`/agenda (date)`
-
-#### Fonctionnalités :
-Affiche l'agenda pour la semaine.
-Prend en charge une date facultative au format "jour/mois/année" (par exemple : 05/04/2024) pour afficher l'agenda à une date spécifique.
-
-#### Paramètres :
-date (facultatif) : La date à laquelle afficher l'agenda (au format "jour/mois/année"). Si aucun argument de date n'est fourni, l'agenda de la semaine en cours sera affiché.
-
-#### Exemple d'utilisation en détail :
-
-`/agenda 05/04/2024`
-
-Cette commande affichera l'agenda de la semaine du 05/04/2024 pour l'utilisateur. L'image de l'agenda sera envoyée en message privé à l'utilisateur.
-Si aucun argument de date n'est fourni, la commande affichera l'agenda de la semaine en cours.
-  
-   
-  
-  
-# /agenda_accorder_droit_membre
-
-Cette commande permet de donner le droit d'accéder à votre emploi du temps à un membre spécifié, de préférence de votre promo.
-
-#### Exemple d'utilisation : 
-
-`/agenda_accorder_droit_membre [membre]`
-
-#### Fonctionnalités :
-Donne le droit d'accéder à votre emploi du temps à un membre spécifié.
-Vérifie si le membre a déjà des identifiants enregistrés et, le cas échéant, ne les modifie pas.
-Ajoute le membre à la liste des personnes autorisées à accéder à votre emploi du temps.
-
-#### Paramètres :
-membre : Le membre auquel donner le droit d'accéder à votre emploi du temps.
-
-#### Exemple d'utilisation en détail :
-
-`/agenda_accorder_droit_membre @utilisateur`
-
-Cette commande accorde à l'utilisateur mentionné le droit d'accéder à votre emploi du temps. Si l'utilisateur a déjà des identifiants enregistrés, la commande ne les modifie pas. Sinon, elle ajoute le membre à la liste des personnes autorisées.
-  
-  
-   
-  
-# /agenda_accorder_droit_role
-
-Cette commande permet de donner le droit d'accéder à votre emploi du temps à toutes les personnes ayant le rôle spécifié.
-
-#### Exemple d'utilisation : 
-
-`/agenda_accorder_droit_role [role]`
-
-#### Fonctionnalités :
-Donne le droit d'accéder à votre emploi du temps à toutes les personnes ayant le rôle spécifié.
-Vérifie si les membres du rôle ont déjà des identifiants enregistrés et, le cas échéant, ne les modifie pas.
-Ajoute les membres du rôle à la liste des personnes autorisées à accéder à votre emploi du temps.
-
-#### Paramètres :
-role : Le rôle auquel donner le droit d'accéder à votre emploi du temps.
-
-#### Exemple d'utilisation en détail :
-
-`/agenda_accorder_droit_role @B2-IFD`
-
-Cette commande accorde à tous les membres du rôle spécifié le droit d'accéder à votre emploi du temps. Si les membres du rôle ont déjà des identifiants enregistrés, la commande ne les modifie pas. Sinon, elle ajoute les membres du rôle à la liste des personnes autorisées.
-
- 
-
-
-# /agenda_desenregistrer
-
-Cette commande permet aux utilisateurs de supprimer toutes les entrées associées à leur identifiant MonCampus.
-
-#### Exemple d'utilisation : 
-
-`/agenda_desenregitrer`
-
-#### Fonctionnalités :
-Permet aux utilisateurs de supprimer toutes les entrées associées à leur identifiant MonCampus enregistrées pour l'accès à l'emploi du temps.
-Supprime toutes les entrées avec l'identifiant MonCampus actuel de l'utilisateur.
-
-#### Paramètres :
-Cette commande n'accepte pas de paramètres supplémentaires.
-
-#### Exemple d'utilisation en détail :
-
-`/agenda_desenregistrer`
-
-Cette commande supprime toutes les entrées associées à l'identifiant MonCampus actuel de l'utilisateur. Toutes les entrées liées à cet identifiant seront supprimées.
-
-
-
-
-# /agenda_eleve
-
-Cette commande permet d'afficher l'emploi du temps d'un membre du serveur Discord. L'emploi du temps affiché est celui de la personne ciblée, à condition qu'elle se soit authentifiée en enregistrant ses identifiants MonCampus ou qu’elle ait reçue les identifiants d’un autre.
-
-#### Exemple d'utilisation : 
-
-`/agenda_eleve [membre] (date)`
-
-#### Fonctionnalités :
-Affiche l'emploi du temps d'un membre du serveur Discord, à condition que cette personne se soit authentifiée en enregistrant ses identifiants MonCampus.
-Prend en charge la spécification d'une date facultative au format jj/mm/aaaa.
-
-#### Paramètres :
-membre : Mentionnez le membre du serveur Discord dont vous souhaitez afficher l'emploi du temps.
-date (facultatif) : Facultatif, spécifiez la date pour laquelle vous souhaitez afficher l'emploi du temps. Utilisez le format jj/mm/aaaa.
-
-#### Exemple d'utilisation en détail :
-
-`/agenda_eleve @Membre 05/04/2024`
-
-Cette commande affiche l'emploi du temps du membre mentionné pour la date spécifiée (facultatif). L'emploi du temps est généré en se connectant à MonCampus avec les identifiants enregistrés par le membre.
-
- 
-
-
-# /agenda_enregistrer
-
-Cette commande permet aux utilisateurs de s'enregistrer pour avoir accès à leur emploi du temps sur Discord.
-
-#### Exemple d'utilisation : 
-
-`/agenda_enregitrer [identifiant] [mdp]`
-
-#### Fonctionnalités :
-Enregistre les identifiants de connexion à MonCampus pour accéder à l'emploi du temps.
-Empêche l'enregistrement de plusieurs ensembles d'identifiants par utilisateur.
-
-#### Paramètres :
-identifiant : Identifiant de connexion MonCampus.
-mdp : Mot de passe de connexion MonCampus.
-
-#### Exemple d'utilisation en détail :
-
-`/agenda_enregistrer login motdepasse`
-
-Cette commande enregistre vos identifiants de connexion MonCampus pour accéder à votre emploi du temps via Discord. Elle vérifie également si vous avez déjà enregistré des identifiants pour cette fonctionnalité et empêche l'enregistrement de plusieurs ensembles d'identifiants par utilisateur.
-
- 
-
-
-# /agenda_modifier
-
-Cette commande permet de mettre à jour les identifiants MonCampus enregistrés pour l'accès à l'emploi du temps.
-
-#### Exemple d'utilisation : 
-
-`/agenda_modifier [identifiant] [mdp]`
-
-#### Fonctionnalités :
-Permet aux utilisateurs de mettre à jour les identifiants MonCampus enregistrés pour l'accès à l'emploi du temps.
-Met à jour les identifiants pour toutes les entrées correspondant à l'identifiant actuel de l'utilisateur.
-Affiche les noms des membres dont les identifiants ont été mis à jour.
-
-#### Paramètres :
-identifiant : Le nouvel identifiant de connexion MonCampus.
-mdp : Le nouveau mot de passe de connexion MonCampus.
-
-#### Exemple d'utilisation en détail :
-
-`/agenda_modifier login motdepasse`
-
-Cette commande met à jour les identifiants MonCampus pour toutes les entrées correspondant à l'identifiant actuel de l'utilisateur avec les nouveaux identifiant et mot de passe fournis. Les noms des membres dont les identifiants ont été mis à jour sont affichés en réponse.
-
- 
-
-
-# /agenda_retirer_droit_membre
-
-Cette commande permet de retirer le droit d'accès à votre emploi du temps à une personne ciblée.
-
-#### Exemple d'utilisation : 
-
-`/agenda_retirer_droit_membre [membre]`
-
-#### Fonctionnalités :
-Retire le droit d'accéder à votre emploi du temps à la personne ciblée.
-Vérifie si la personne ciblée a des identifiants enregistrés et, le cas échéant, les supprime de la liste des personnes autorisées.
-
-#### Paramètres :
-membre : Le membre auquel retirer le droit d'accéder à votre emploi du temps.
-
-#### Exemple d'utilisation en détail :
-
-`/agenda_retirer_droit_membre @Utilisateur`
-
-Cette commande retire le droit d'accès à votre emploi du temps à la personne ciblée. Si la personne ciblée a des identifiants enregistrés et que ces identifiants correspondent à ceux de l'utilisateur qui exécute la commande, ils sont supprimés de la liste des personnes autorisées.
-
- 
-
-
-# /agenda_retirer_droit_role
-
-Cette commande permet de retirer le droit d'accès à votre emploi du temps à toutes les personnes ayant le rôle spécifié.
-
-#### Exemple d'utilisation : 
-
-`/agenda_retirer_droit_role [role]`
-
-#### Fonctionnalités :
-Retire le droit d'accéder à votre emploi du temps à toutes les personnes ayant le rôle spécifié.
-Vérifie si les membres du rôle ont des identifiants enregistrés et, le cas échéant, les supprime de la liste des personnes autorisées.
-
-#### Paramètres :
-role : Le rôle auquel retirer le droit d'accéder à votre emploi du temps.
-
-#### Exemple d'utilisation en détail :
-
-`/agenda_retirer_droit_role @B2-IFD`
-
-Cette commande retire à tous les membres du rôle spécifié le droit d'accéder à votre emploi du temps. Si les membres du rôle ont des identifiants enregistrés et que ces identifiants correspondent à ceux de l'utilisateur qui exécute la commande, ils sont supprimés de la liste des personnes autorisées.
-
-
- 
-
-# /agenda_voir_partage_droit
-
-Cette commande permet de voir les membres avec qui vous partagez votre agenda.
-
-#### Exemple d'utilisation : 
-
-`/agenda_voir_partage_droit`
-
-#### Fonctionnalités :
-Affiche les membres avec qui vous partagez votre agenda.
-Vérifie si vous possédez des identifiants enregistrés pour cette fonctionnalité.
-
-#### Paramètres :
-Cette commande n'accepte aucun paramètre.
-
-#### Exemple d'utilisation en détail :
-
-`/agenda_voir_partage_droit`
-
-Cette commande affiche les membres avec qui vous partagez votre agenda. Si vous ne partagez pas actuellement votre agenda avec d'autres membres, elle vous informera également de cette situation.
+	- /vote_supprimer
 
 
 
@@ -317,6 +86,328 @@ Cette commande va parcourir le fichier CSV spécifié, rechercher les noms et pr
 
  
 
+
+# /atelier_activer
+
+Cette commande permet d'activer les inscriptions pour les ateliers.
+
+#### Exemple d'utilisation : 
+
+`/atelier_activer`
+
+#### Fonctionnalités :
+Active les inscriptions pour les ateliers.
+
+#### Paramètres :
+Cette commande n'accepte pas de paramètres supplémentaires.
+
+#### Exemple d'utilisation en détail :
+
+`/atelier_activer`
+
+Cette commande va activer les inscriptions pour les ateliers.
+
+# /atelier_ajouter
+
+Cette commande permet d'ajouter une proposition d'atelier.
+
+#### Exemple d'utilisation : 
+
+`/atelier_ajouter [titre] [description]`
+
+#### Fonctionnalités :
+Ajoute une proposition d'atelier avec un titre et une description.
+Crée un message avec un bouton pour s'inscrire à l'atelier.
+
+#### Paramètres :
+titre : Le titre de la proposition.
+description : La description de la proposition.
+
+#### Exemple d'utilisation en détail :
+
+`/atelier_ajouter "Atelier Python" "Apprendre les bases de Python"`
+
+Cette commande va ajouter une proposition d'atelier intitulée "Atelier Python" avec la description "Apprendre les bases de Python". Un message avec un bouton pour s'inscrire à l'atelier sera créé dans le canal actuel.
+
+# /atelier_ajouter_role
+
+Cette commande permet d'ajouter des rôles à la liste des rôles pouvant utiliser le module atelier.
+
+#### Exemple d'utilisation : 
+
+`/atelier_ajouter_role [role1] (role2) (role3) (role4) (role5) (role6) (role7) (role8) (role9) (role10)`
+
+#### Fonctionnalités :
+Ajoute des rôles à la liste des rôles pouvant utiliser le module atelier.
+Attribue le rôle "Non Inscrit" aux membres des rôles ajoutés.
+
+#### Paramètres :
+role1 : Le premier rôle à ajouter.
+role2 : Le deuxième rôle à ajouter (optionnel).
+role3 : Le troisième rôle à ajouter (optionnel).
+role4 : Le quatrième rôle à ajouter (optionnel).
+role5 : Le cinquième rôle à ajouter (optionnel).
+role6 : Le sixième rôle à ajouter (optionnel).
+role7 : Le septième rôle à ajouter (optionnel).
+role8 : Le huitième rôle à ajouter (optionnel).
+role9 : Le neuvième rôle à ajouter (optionnel).
+role10 : Le dixième rôle à ajouter (optionnel).
+
+#### Exemple d'utilisation en détail :
+
+`/atelier_ajouter_role @B2-IFD @Apprenant IPI`
+
+Cette commande va ajouter les rôles @B2-IFD et @Apprenant IPI à la liste des rôles pouvant utiliser le module atelier. Les membres de ces rôles recevront également le rôle "Non Inscrit".
+
+# /atelier_config
+
+Cette commande permet d'afficher les informations de configuration du module atelier.
+
+#### Exemple d'utilisation : 
+
+`/atelier_config`
+
+#### Fonctionnalités :
+Affiche les informations de configuration du module atelier.
+
+#### Paramètres :
+Cette commande n'accepte pas de paramètres supplémentaires.
+
+#### Exemple d'utilisation en détail :
+
+`/atelier_config`
+
+Cette commande va afficher les informations de configuration du module atelier, y compris le statut des inscriptions, le libellé du bouton, le nombre maximum d'inscrits par atelier et par promotion, le nombre d'inscriptions possible par utilisateur, les rôles autorisés à participer et la liste des ateliers.
+
+# /atelier_desactiver
+
+Cette commande permet de désactiver les inscriptions pour les ateliers.
+
+#### Exemple d'utilisation : 
+
+`/atelier_desactiver`
+
+#### Fonctionnalités :
+Désactive les inscriptions pour les ateliers.
+
+#### Paramètres :
+Cette commande n'accepte pas de paramètres supplémentaires.
+
+#### Exemple d'utilisation en détail :
+
+`/atelier_desactiver`
+
+Cette commande va désactiver les inscriptions pour les ateliers.
+
+# /atelier_inscriptions
+
+Cette commande permet d'afficher les inscrits des ateliers.
+
+#### Exemple d'utilisation : 
+
+`/atelier_inscriptions`
+
+#### Fonctionnalités :
+Affiche les inscrits des ateliers.
+
+#### Paramètres :
+Cette commande n'accepte pas de paramètres supplémentaires.
+
+#### Exemple d'utilisation en détail :
+
+`/atelier_inscriptions`
+
+Cette commande va afficher les inscrits des ateliers et envoyer les informations en message privé à l'utilisateur.
+
+# /atelier_label_bouton
+
+Cette commande permet de modifier le texte du bouton d'inscription aux ateliers.
+
+#### Exemple d'utilisation : 
+
+`/atelier_label_bouton [button_label]`
+
+#### Fonctionnalités :
+Modifie le texte du bouton d'inscription aux ateliers.
+
+#### Paramètres :
+button_label : Le nouveau texte du bouton (ne doit pas dépasser 80 caractères).
+
+#### Exemple d'utilisation en détail :
+
+`/atelier_label_bouton "Rejoindre l'atelier"`
+
+Cette commande va modifier le texte du bouton d'inscription aux ateliers en "Rejoindre l'atelier".
+
+# /atelier_liste_role
+
+Cette commande permet de lister les rôles autorisés à utiliser le module atelier.
+
+#### Exemple d'utilisation : 
+
+`/atelier_liste_role`
+
+#### Fonctionnalités :
+Affiche la liste des rôles autorisés à utiliser le module atelier.
+
+#### Paramètres :
+Cette commande n'accepte pas de paramètres supplémentaires.
+
+#### Exemple d'utilisation en détail :
+
+`/atelier_liste_role`
+
+Cette commande va afficher la liste des rôles autorisés à utiliser le module atelier.
+
+# /atelier_max_inscription
+
+Cette commande permet de modifier le nombre maximum d'ateliers auxquels il est possible de participer.
+
+#### Exemple d'utilisation : 
+
+`/atelier_max_inscription [max_inscription]`
+
+#### Fonctionnalités :
+Modifie le nombre maximum d'ateliers auxquels il est possible de participer.
+
+#### Paramètres :
+max_inscription : Le nombre maximum d'ateliers auxquels il est possible de participer.
+
+#### Exemple d'utilisation en détail :
+
+`/atelier_max_inscription 3`
+
+Cette commande va modifier le nombre maximum d'ateliers auxquels il est possible de participer à 3.
+
+# /atelier_max_inscrits
+
+Cette commande permet de modifier le nombre maximum d'inscrits pour les ateliers.
+
+#### Exemple d'utilisation : 
+
+`/atelier_max_inscrits [max_inscrits]`
+
+#### Fonctionnalités :
+Modifie le nombre maximum d'inscrits pour les ateliers.
+
+#### Paramètres :
+max_inscrits : Le nombre maximum d'inscrits pour les ateliers.
+
+#### Exemple d'utilisation en détail :
+
+`/atelier_max_inscrits 20`
+
+Cette commande va modifier le nombre maximum d'inscrits pour les ateliers à 20.
+
+# /atelier_max_inscrits_promo
+
+Cette commande permet de modifier le nombre maximum d'inscrits par promotion.
+
+#### Exemple d'utilisation : 
+
+`/atelier_max_inscrits_promo [max_inscrits]`
+
+#### Fonctionnalités :
+Modifie le nombre maximum d'inscrits par promotion pour les ateliers.
+
+#### Paramètres :
+max_inscrits : Le nombre maximum d'inscrits par promotion.
+
+#### Exemple d'utilisation en détail :
+
+`/atelier_max_inscrits_promo 5`
+
+Cette commande va modifier le nombre maximum d'inscrits par promotion pour les ateliers à 5.
+
+# /atelier_non_inscriptions
+
+Cette commande permet d'afficher les personnes ne s'étant pas inscrites aux ateliers.
+
+#### Exemple d'utilisation : 
+
+`/atelier_non_inscriptions`
+
+#### Fonctionnalités :
+Affiche les personnes ne s'étant pas inscrites aux ateliers.
+
+#### Paramètres :
+Cette commande n'accepte pas de paramètres supplémentaires.
+
+#### Exemple d'utilisation en détail :
+
+`/atelier_non_inscriptions`
+
+Cette commande va afficher les personnes ne s'étant pas inscrites aux ateliers et envoyer les informations en message privé à l'utilisateur.
+
+# /atelier_relance
+
+Cette commande permet de relancer les personnes n'étant pas inscrites aux ateliers.
+
+#### Exemple d'utilisation : 
+
+`/atelier_relance`
+
+#### Fonctionnalités :
+Relance les personnes n'étant pas inscrites aux ateliers.
+
+#### Paramètres :
+Cette commande n'accepte pas de paramètres supplémentaires.
+
+#### Exemple d'utilisation en détail :
+
+`/atelier_relance`
+
+Cette commande va relancer les personnes n'étant pas inscrites aux ateliers en envoyant un message dans le canal actuel.
+
+# /atelier_retirer_role
+
+Cette commande permet de supprimer des rôles de la liste des rôles pouvant utiliser le module atelier.
+
+#### Exemple d'utilisation : 
+
+`/atelier_retirer_role [role1] (role2) (role3) (role4) (role5) (role6) (role7) (role8) (role9) (role10)`
+
+#### Fonctionnalités :
+Supprime des rôles de la liste des rôles pouvant utiliser le module atelier.
+Retire le rôle "Non Inscrit" aux membres des rôles supprimés.
+
+#### Paramètres :
+role1 : Le premier rôle à supprimer.
+role2 : Le deuxième rôle à supprimer (optionnel).
+role3 : Le troisième rôle à supprimer (optionnel).
+role4 : Le quatrième rôle à supprimer (optionnel).
+role5 : Le cinquième rôle à supprimer (optionnel).
+role6 : Le sixième rôle à supprimer (optionnel).
+role7 : Le septième rôle à supprimer (optionnel).
+role8 : Le huitième rôle à supprimer (optionnel).
+role9 : Le neuvième rôle à supprimer (optionnel).
+role10 : Le dixième rôle à supprimer (optionnel).
+
+#### Exemple d'utilisation en détail :
+
+`/atelier_retirer_role @B2-IFD @Apprenant IPI`
+
+Cette commande va supprimer les rôles @B2-IFD et @Apprenant IPI de la liste des rôles pouvant utiliser le module atelier. Les membres de ces rôles perdront également le rôle "Non Inscrit".
+
+# /atelier_supprimer
+
+Cette commande permet de supprimer toutes les données et inscriptions du module atelier.
+
+#### Exemple d'utilisation : 
+
+`/atelier_supprimer`
+
+#### Fonctionnalités :
+Supprime toutes les données et inscriptions du module atelier.
+
+#### Paramètres :
+Cette commande n'accepte pas de paramètres supplémentaires.
+
+#### Exemple d'utilisation en détail :
+
+`/atelier_supprimer`
+
+Cette commande va supprimer toutes les données et inscriptions du module atelier.
 
 # /creer_categorie
 
@@ -367,6 +458,30 @@ nom_categorie : Le nom de la catégorie où créer le canal.
 
 Cette commande va créer un canal de discussion textuel nommé "informations-utiles" dans la catégorie "========== B2 IFD ==========" et ayant les autorisations pour le(s) rôle(s) de base de la catégorie. 
 Elle affichera ensuite un message indiquant que le canal a été créé dans la catégorie spécifiée.
+
+ 
+
+
+# /ping
+
+Cette commande permet de vérifier si le bot est en ligne et de mesurer le temps de latence entre l'envoi d'un message et sa réception.
+
+#### Exemple d'utilisation : 
+
+`/ping`
+
+#### Fonctionnalités :
+Vérifie si le bot est en ligne.
+Mesure le temps de latence entre l'envoi d'un message et sa réception.
+
+#### Paramètres :
+Cette commande n'accepte pas de paramètres supplémentaires.
+
+#### Exemple d'utilisation en détail :
+
+`/ping`
+
+Cette commande va envoyer un message "Pong!" et afficher le temps de latence en millisecondes.
 
  
 
@@ -501,3 +616,64 @@ supprimer : Booléen indiquant s'il faut supprimer le rôle actuel des personnes
 
 Cette commande va donner le rôle @B2-IFD à toutes les personnes ayant le rôle @B1-IFD. Si l'option True est activée, elle supprimera également le rôle @B1-IFD de ces personnes.
 Elle affichera ensuite un message indiquant les personnes auxquelles le rôle a été donné ou supprimé.
+
+# /vote_ajouter_image
+
+Cette commande permet d'ajouter une image pour le vote.
+
+#### Exemple d'utilisation : 
+
+`/vote_ajouter_image [image]`
+
+#### Fonctionnalités :
+Ajoute une image pour le vote.
+Crée un message avec un bouton pour voter pour l'image.
+
+#### Paramètres :
+image : L'image à ajouter pour le vote.
+
+#### Exemple d'utilisation en détail :
+
+`/vote_ajouter_image @image`
+
+Cette commande va ajouter l'image spécifiée pour le vote et créer un message avec un bouton pour voter pour l'image.
+
+# /vote_resultats
+
+Cette commande permet d'afficher les résultats du vote.
+
+#### Exemple d'utilisation : 
+
+`/vote_resultats`
+
+#### Fonctionnalités :
+Affiche les résultats du vote.
+
+#### Paramètres :
+Cette commande n'accepte pas de paramètres supplémentaires.
+
+#### Exemple d'utilisation en détail :
+
+`/vote_resultats`
+
+Cette commande va afficher les résultats du vote.
+
+# /vote_supprimer
+
+Cette commande permet de supprimer toutes les données et votes.
+
+#### Exemple d'utilisation : 
+
+`/vote_supprimer`
+
+#### Fonctionnalités :
+Supprime toutes les données et votes.
+
+#### Paramètres :
+Cette commande n'accepte pas de paramètres supplémentaires.
+
+#### Exemple d'utilisation en détail :
+
+`/vote_supprimer`
+
+Cette commande va supprimer toutes les données et votes.

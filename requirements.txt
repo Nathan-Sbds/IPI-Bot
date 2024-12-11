@@ -1,3 +1,4 @@
 cryptocode==0.1
-discord.py==2.3.2
-pyppeteer==1.0.2
+discord.py==2.4.0
+pyppeteer==2.0.0
+Pillow==11.0.0
