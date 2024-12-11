@@ -1,67 +1,54 @@
-import discord, re, json, urllib.request, os, logging, cryptocode, asyncio, sqlite3
+import discord, re, json, urllib.request, os, logging, cryptocode, smtplib
 from discord import app_commands
-import pyppeteer
-from datetime import datetime, timedelta
+from datetime import datetime
 from PIL import Image
-import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from icalendar import Calendar, Event
 
-
+# Configure logging
 logging.basicConfig(
     filename="bot_errors.log",
     level=logging.ERROR,
     format="%(asctime)s [%(levelname)s]: %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
 )
+
+# Initialize Discord client and command tree
 intents = discord.Intents().all()
 client = discord.Client(intents=intents)
 tree = app_commands.CommandTree(client)
+folder_path = "Attachments"
 
+# Load data from JSON files
 with open("data.json") as jsonFile:
     DataJson = json.load(jsonFile)
     jsonFile.close()
 
-custom_css = """
-    .Teams {
-        display: none !important;
-    }
-
-    .Presence {
-        display: none !important;
-    }
-    """
-path_exe_chromium = "/usr/bin/chromium-browser"
+try:
+    with open("secret_santa.json", "r") as file:
+        dataSecret = json.load(file)
+except FileNotFoundError:
+    dataSecret = {"votes": {}, "images": [], "next_image_id": 1, "result_id": 0}
+    with open("secret_santa.json", "w") as file:
+        json.dump(dataSecret, file)
 
 privateCommandsList = ["ping", "clear_dm"]
-connection = sqlite3.connect("emploi_du_temps.db")
-cursor = connection.cursor()
-cursor.execute(
-    """
-CREATE TABLE IF NOT EXISTS emploi_du_temps (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    image_data BLOB,
-    discord_id INTEGER,
-    channel_id INTEGER
-)
-"""
-)
-connection.commit()
-connection.close()
-
 
 def send_mail(errorBot, command):
+    """
+    Send an email notification when an error occurs.
+
+    Args:
+        errorBot (str): The error message.
+        command (str): The command that caused the error.
+    """
     smtp_server = "smtp.gmail.com"
     smtp_port = 587
     smtp_username = cryptocode.decrypt(DataJson["MAIL_ID"], DataJson["CRYPT"])
-
     smtp_password = cryptocode.decrypt(DataJson["MAIL_MDP"], DataJson["CRYPT"])
 
     smtp = smtplib.SMTP(smtp_server, smtp_port)
-
     smtp.starttls()
-
     smtp.login(smtp_username, smtp_password)
 
     sender_email = "IPI Bot"
@@ -75,44 +62,37 @@ def send_mail(errorBot, command):
     msg["Subject"] = subject
 
     msg.attach(MIMEText(message_text, "plain"))
-
     smtp.sendmail(sender_email, recipient_email, msg.as_string())
-
     smtp.quit()
-
 
 @client.event
 async def on_ready():
+    """
+    Event handler for when the bot is ready.
+    """
     await client.change_presence(
         status=discord.Status.online, activity=discord.Game("Gerer les choses...")
     )
     await tree.sync()
+
+    for image_info in dataSecret["images"]:
+        image_id = image_info["id"]
+        view = MyView()
+        client.add_view(view)
+
+    for propositions in data["propositions"]:
+        proposition_id = propositions["id"]
+        view = MyViewAtelier()
+        client.add_view(view)
+
+    print(f"Logged in as {client.user.name}")
     print("Ready!")
-
-    while not client.is_closed():
-        now = datetime.now()
-        next_execution_time_5h = datetime(now.year, now.month, now.day, 5, 0, 0)
-        next_execution_time_11h = datetime(now.year, now.month, now.day, 11, 0, 0)
-
-        if now < next_execution_time_5h:
-            delta = next_execution_time_5h - now
-        elif now < next_execution_time_11h:
-            delta = next_execution_time_11h - now
-        else:
-            tomorrow = now + timedelta(days=1)
-            next_execution_time_5h = datetime(
-                tomorrow.year, tomorrow.month, tomorrow.day, 5, 0, 0
-            )
-            delta = next_execution_time_5h - now
-
-        seconds_until_execution = delta.total_seconds()
-
-        await asyncio.sleep(seconds_until_execution)
-        await all_agenda_week_print()
-
 
 @client.event
 async def on_interaction(ctx):
+    """
+    Event handler for interactions.
+    """
     if (
         ctx.channel.type == discord.ChannelType.private
         and ctx.data["name"] not in privateCommandsList
@@ -121,10 +101,418 @@ async def on_interaction(ctx):
             "Le bot ne prend pas en charge les messages privés.", ephemeral=True
         )
 
+### Commandes Votes ###
 
-@tree.command(name="agenda", description="Affiche l'agenda pour la semaine")
-@app_commands.describe(
-    date="Agenda a la date du : (au format jour/mois/année exemple : 05/04/2024)"
+@tree.command(name="vote_ajouter_image", description="Ajouter une image")
+@app_commands.checks.has_permissions(administrator=True)
+async def add_image(ctx, image: discord.Attachment):
+    """
+    Add an image for voting.
+
+    Args:
+        ctx: The context of the command.
+        image (discord.Attachment): The image to be added.
+    """
+    await ctx.response.send_message(content="J'y travaille...", ephemeral=True)
+
+    with open("secret_santa.json", "r") as file:
+        dataSecret = json.load(file)
+
+    # Make sure the folder exists; if not, create it
+    if not os.path.exists(folder_path):
+        os.makedirs(folder_path)
+
+    # Save the attachment with its original filename
+    file_path = os.path.join(
+        folder_path,
+        f"Photo_{dataSecret['next_image_id']}.{image.filename.split('.')[-1]}",
+    )
+    await image.save(file_path)
+
+    image_id = dataSecret["next_image_id"]
+
+    # Create a vote option for the added image
+    view = MyView()  # Pass the image ID to the view constructor
+    client.add_view(view)
+    view.timeout = None  # Set the timeout to None to make the view persistent
+
+    embed = discord.Embed(
+        title=f"Photo {image_id} :",
+        description="Cliquez sur le bouton ci-dessous pour voter pour cette image.",
+        color=discord.Color.red(),
+    )
+    embed.set_image(
+        url=f"attachment://Photo_{image_id}.{image.filename.split('.')[-1]}"
+    )
+
+    message = await client.get_channel(ctx.channel_id).send(
+        file=discord.File(
+            os.path.join(
+                folder_path, f"Photo_{image_id}.{image.filename.split('.')[-1]}"
+            )
+        ),
+        embed=embed,
+        view=view,
+    )
+
+    dataSecret["images"].append(
+        {
+            "id": image_id,
+            "file": f"Photo_{image_id}.{image.filename.split('.')[-1]}",
+            "message_id": message.id,
+        }
+    )
+
+    dataSecret["next_image_id"] += 1
+
+    # Save the data to the JSON file
+    with open("secret_santa.json", "w") as file:
+        json.dump(dataSecret, file)
+
+    await result_in_time(ctx, True)
+    await ctx.edit_original_response(content=f"L'image {image_id} a été ajoutée.")
+
+@client.event
+async def on_button_click(interaction: discord.Interaction, button: discord.ui.Button):
+    """
+    Event handler for button clicks.
+    """
+    if "vote_button" in button.custom_id:
+        view = client.get_view(button.view.id)
+        await view.button_callback(interaction, button)
+
+@tree.command(
+    name="vote_supprimer", description="Supprimer toutes les données et votes"
+)
+@app_commands.checks.has_permissions(administrator=True)
+async def clear_all(ctx):
+    """
+    Clear all voting data and votes.
+
+    Args:
+        ctx: The context of the command.
+    """
+    global dataSecret
+    await ctx.response.send_message(content="J'y travaille...", ephemeral=True)
+
+    for image in dataSecret["images"]:
+        channel = client.get_channel(ctx.channel_id)
+        message = await channel.fetch_message(image["message_id"])
+        await message.delete()
+    if dataSecret["result_id"] != 0:
+        message = await channel.fetch_message(dataSecret["result_id"])
+        await message.delete()
+
+    dataSecret = {"votes": {}, "images": [], "next_image_id": 1, "result_id": 0}
+
+    # Save the data to the JSON file
+    with open("secret_santa.json", "w") as file:
+        json.dump(dataSecret, file)
+
+    for file in os.listdir(folder_path):
+        file_path = os.path.join(folder_path, file)
+        try:
+            if os.path.isfile(file_path):
+                os.remove(file_path)
+        except Exception as e:
+            print(e)
+
+    await ctx.edit_original_response(content="Toutes les données ont été supprimées")
+
+@tree.command(name="vote_resultats", description="Afficher les résultats")
+@app_commands.checks.has_permissions(administrator=True)
+async def show_results(ctx):
+    """
+    Show the voting results.
+
+    Args:
+        ctx: The context of the command.
+    """
+    await ctx.response.send_message(content="J'y travaille...", ephemeral=True)
+
+    with open("secret_santa.json", "r") as file:
+        dataSecret = json.load(file)
+
+    # Get the results
+    votes = dataSecret["votes"]
+    image_ids = [int(vote_id) for vote_id in votes.values()]
+    image_data = [image for image in dataSecret["images"]]
+
+    # Create an embed to display the results
+    embed_detail = discord.Embed(
+        title="Résultat du Vote",
+        description="Voici les résultats détaillées du vote :",
+        color=discord.Color.green(),
+    )
+
+    img1_vote = -1
+    img1_name = ""
+    img2_vote = -1
+    img2_name = ""
+    img3_vote = -1
+    img3_name = ""
+
+    for image in image_data:
+        image_id = image["id"]
+        image_filename = image["file"]
+        vote_count = image_ids.count(image_id)
+        if vote_count > img3_vote:
+            img3_vote = vote_count
+            img3_name = image_filename
+            if vote_count > img2_vote:
+                img3_vote, img2_vote = img2_vote, img3_vote
+                img3_name, img2_name = img2_name, img3_name
+                if vote_count > img1_vote:
+                    img2_vote, img1_vote = img1_vote, img2_vote
+                    img2_name, img1_name = img1_name, img2_name
+
+        embed_detail.add_field(
+            name=f"Photo {image_id}:",
+            value=f"{vote_count} vote{'s' if vote_count > 1 else ''}",
+            inline=False,
+        )
+
+    if img1_vote > 0:
+        image_fond = Image.open("Img/Podium.png").convert("RGBA")
+        couronne = Image.open("Img/Couronne.png").convert("RGBA")
+
+        # Ouvrir les trois images à coller
+        if img1_name != "":
+            image1 = Image.open(f"Attachments/{img3_name}").convert("RGBA")
+        else:
+            image1 = Image.open(f"Img/Null.png").convert("RGBA")
+
+        if img2_name != "":
+            image2 = Image.open(f"Attachments/{img2_name}").convert("RGBA")
+        else:
+            image2 = Image.open(f"Img/Null.png").convert("RGBA")
+
+        if img3_name != "":
+            image3 = Image.open(f"Attachments/{img1_name}").convert("RGBA")
+        else:
+            image3 = Image.open(f"Img/Null.png").convert("RGBA")
+
+        # Redimensionner les trois images à une largeur de 545 tout en maintenant les proportions
+        largeur_souhaitee = 545
+        hauteur_souhaitee1 = (largeur_souhaitee * image1.height) // image1.width
+        hauteur_souhaitee2 = (largeur_souhaitee * image2.height) // image2.width
+        hauteur_souhaitee3 = (largeur_souhaitee * image3.height) // image3.width
+
+        image1 = image1.resize((largeur_souhaitee, hauteur_souhaitee1))
+        image2 = image2.resize((largeur_souhaitee, hauteur_souhaitee2))
+        image3 = image3.resize((largeur_souhaitee, hauteur_souhaitee3))
+
+        # Coller les trois images sur l'image de fond aux positions spécifiées
+        position1 = (333, 1979 - image1.height)
+        position2 = (1699, 1867 - image2.height)
+        position3 = (1009, 1587 - image3.height)
+        positionc = (1337, 1587 - image3.height - 114)
+
+        image_fond.paste(image1, position1, image1)
+        image_fond.paste(image2, position2, image2)
+        image_fond.paste(image3, position3, image3)
+        image_fond.paste(couronne, positionc, couronne)
+
+        image_fond.save("Img/result_podium.png")
+
+        # Envoie l'embed avec les fichiers locaux sur le canal où la commande a été utilisée
+        embed = discord.Embed(
+            title="Le Podium", description="Et le grand gagant est...", color=0xFFD700
+        )  # Couleur dorée
+
+        embed.set_image(url=f"attachment://result_podium.png")
+
+        await client.get_channel(ctx.channel_id).send(
+            embed=embed, file=discord.File("Img/result_podium.png")
+        )
+        await client.get_channel(ctx.channel_id).send(embed=embed_detail)
+        await ctx.edit_original_response(
+            content=f"Les résultats ont été postés dans le channel <#{ctx.channel_id}>.",
+        )
+    else:
+        await ctx.edit_original_response(
+            content="Il n'y a pas de résultats à afficher."
+        )
+
+async def result_in_time(ctx, msg_delete: bool = False):
+    """
+    Display real-time voting results.
+
+    Args:
+        ctx: The context of the command.
+        msg_delete (bool): Whether to delete the previous result message.
+    """
+    with open("secret_santa.json", "r") as file:
+        dataSecret = json.load(file)
+
+    # Get the results
+    votes = dataSecret["votes"]
+    image_ids = [int(vote_id) for vote_id in votes.values()]
+    image_data = [image for image in dataSecret["images"]]
+
+    # Create an embed to display the results
+    embed = discord.Embed(
+        title="Résultat en temps réel du Vote",
+        description="Voici les résultats actuels du vote :",
+        color=discord.Color.green(),
+    )
+
+    max_votes = 0
+    for image in image_data:
+        image_id = image["id"]
+        image_filename = image["file"]
+        vote_count = image_ids.count(image_id)
+        if vote_count > max_votes:
+            max_votes = vote_count
+            image_max = image
+
+        embed.add_field(
+            name=f"Photo {image_id}:",
+            value=f"{vote_count} vote{'s' if vote_count > 1 else ''}",
+            inline=False,
+        )
+
+    if max_votes > 0:
+        if msg_delete or dataSecret["result_id"] == 0:
+            if dataSecret["result_id"] != 0:
+                channel = client.get_channel(ctx.channel_id)
+                message = await channel.fetch_message(dataSecret["result_id"])
+                await message.delete()
+
+            message = await client.get_channel(ctx.channel_id).send(embed=embed)
+
+            dataSecret["result_id"] = message.id
+
+            with open("secret_santa.json", "w") as file:
+                json.dump(dataSecret, file)
+        else:
+            channel = client.get_channel(ctx.channel_id)
+            message = await channel.fetch_message(dataSecret["result_id"])
+            await message.edit(embed=embed)
+
+class MyView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=None)
+
+    @discord.ui.button(
+        label="Voter", style=discord.ButtonStyle.red, custom_id=f"vote_button"
+    )
+    async def button_callback(
+        self, interaction: discord.Interaction, button: discord.ui.Button
+    ):
+        """
+        Callback for the vote button.
+
+        Args:
+            interaction (discord.Interaction): The interaction object.
+            button (discord.ui.Button): The button that was clicked.
+        """
+        with open("secret_santa.json", "r") as file:
+            dataSecret = json.load(file)
+
+        user_id = str(interaction.user.id)
+
+        if user_id in dataSecret["votes"]:
+            del dataSecret["votes"][user_id]
+
+        for image in dataSecret["images"]:
+            if image["message_id"] == interaction.message.id:
+                dataSecret["votes"][user_id] = image["id"]
+                selected_image = image["id"]
+                break
+
+        # Save the data to the JSON file
+        with open("secret_santa.json", "w") as file:
+            json.dump(dataSecret, file)
+
+        await interaction.response.send_message(
+            f"Vous avez voté pour l'image {selected_image}.", ephemeral=True
+        )
+
+        await result_in_time(interaction)
+
+############################ Commandes Atelier ############################
+
+try:
+    with open("participations.json", "r") as file:
+        data = json.load(file)
+except FileNotFoundError:
+    data = {
+        "max_inscription": 2,
+        "max_inscrits": 14,
+        "max_inscrits_promo": 4,
+        "roles": [],
+        "propositions": [],
+        "participations": {},
+        "next_proposition_id": 1,
+        "result_id": 0,
+        "active": False,
+        "button_label": "S'inscrire à l'Atelier",
+    }
+
+    with open("participations.json", "w") as file:
+        json.dump(data, file)
+        file.close()
+
+@tree.command(name="atelier_ajouter", description="Ajouter une proposition")
+@app_commands.checks.has_any_role(
+    "Team Pedago IPI",
+    "Team Entreprise IPI",
+    "Team Communication IPI",
+    "Directrice IPI",
+    "Admin Serveur",
+)
+async def atelier_add_proposition(ctx, titre: str, description: str):
+    """
+    Add a workshop proposition.
+
+    Args:
+        ctx: The context of the command.
+        titre (str): The title of the proposition.
+        description (str): The description of the proposition.
+    """
+    await ctx.response.send_message(content="J'y travaille...", ephemeral=True)
+
+    with open("participations.json", "r") as file:
+        data = json.load(file)
+
+    proposition_id = data["next_proposition_id"]
+
+    view = MyViewAtelier()
+    client.add_view(view)
+    view.timeout = None
+
+    embed = discord.Embed(
+        title=titre,
+        description=description,
+        color=discord.Color.red(),
+    )
+
+    message = await client.get_channel(ctx.channel_id).send(
+        embed=embed,
+        view=view,
+    )
+
+    data["propositions"].append(
+        {
+            "id": proposition_id,
+            "message_id": message.id,
+            "channel_id": message.channel.id,
+            "titre": titre,
+        }
+    )
+
+    data["next_proposition_id"] += 1
+
+    with open("participations.json", "w") as file:
+        json.dump(data, file)
+
+    await atelier_result_in_time(ctx, True)
+    await ctx.edit_original_response(content=f"La proposition {titre} a été ajoutée.")
+
+@tree.command(
+    name="atelier_ajouter_role",
+    description="Ajouter un rôle a la liste des roles pouvant utiliser le module atelier",
 )
 @app_commands.checks.has_any_role(
     "Team Pedago IPI",
@@ -132,330 +520,299 @@ async def on_interaction(ctx):
     "Team Communication IPI",
     "Directrice IPI",
     "Admin Serveur",
-    "Apprenant IPI",
 )
-async def agenda(ctx, date: str = ""):
-    try:
-        await ctx.response.send_message(content="J'y travaille...", ephemeral=True)
-        with open("login_promo.json") as jsonFile:
-            LoginPromoJson = json.load(jsonFile)
-            jsonFile.close()
-        if str(ctx.user.id) in LoginPromoJson:
-            if date == "":
-                date = datetime.now().strftime("%m/%d/%Y")
-            else:
-                try:
-                    date = (
-                        datetime.strptime(date, "%d/%m/%Y").date().strftime("%m/%d/%Y")
-                    )
-                except ValueError:
-                    await ctx.edit_original_response(
-                        content="Le format de la date fournit n'est pas valide la date doit etre le la forme jj/mm/aaaa"
-                    )
-                    return
+async def atelier_add_role(
+    ctx,
+    role1: discord.Role,
+    role2: discord.Role = None,
+    role3: discord.Role = None,
+    role4: discord.Role = None,
+    role5: discord.Role = None,
+    role6: discord.Role = None,
+    role7: discord.Role = None,
+    role8: discord.Role = None,
+    role9: discord.Role = None,
+    role10: discord.Role = None,
+):
+    """
+    Add roles to the list of roles that can use the workshop module.
 
-            max_attempts = 3
+    Args:
+        ctx: The context of the command.
+        role1 (discord.Role): The first role to add.
+        role2 (discord.Role, optional): The second role to add.
+        role3 (discord.Role, optional): The third role to add.
+        role4 (discord.Role, optional): The fourth role to add.
+        role5 (discord.Role, optional): The fifth role to add.
+        role6 (discord.Role, optional): The sixth role to add.
+        role7 (discord.Role, optional): The seventh role to add.
+        role8 (discord.Role, optional): The eighth role to add.
+        role9 (discord.Role, optional): The ninth role to add.
+        role10 (discord.Role, optional): The tenth role to add.
+    """
+    with open("participations.json", "r") as file:
+        data = json.load(file)
 
-            for attempt in range(max_attempts):
-                if attempt > 0:
-                    print(f"Tentative {attempt + 1}...")
+    await ctx.response.send_message(content="J'y travaille...", ephemeral=True)
+    members = []
+    data["roles"].append(role1.id)
+    for member in role1.members:
+        members.append(member)
+    multiple = False
+    if role2 is not None:
+        data["roles"].append(role2.id)
+        multiple = True
+        for member in role2.members:
+            members.append(member)
+    if role3 is not None:
+        data["roles"].append(role3.id)
+        multiple = True
+        for member in role3.members:
+            members.append(member)
+    if role4 is not None:
+        data["roles"].append(role4.id)
+        multiple = True
+        for member in role4.members:
+            members.append(member)
+    if role5 is not None:
+        data["roles"].append(role5.id)
+        multiple = True
+        for member in role5.members:
+            members.append(member)
+    if role6 is not None:
+        data["roles"].append(role6.id)
+        multiple = True
+        for member in role6.members:
+            members.append(member)
+    if role7 is not None:
+        data["roles"].append(role7.id)
+        multiple = True
+        for member in role7.members:
+            members.append(member)
+    if role8 is not None:
+        data["roles"].append(role8.id)
+        multiple = True
+        for member in role8.members:
+            members.append(member)
+    if role9 is not None:
+        data["roles"].append(role9.id)
+        multiple = True
+        for member in role9.members:
+            members.append(member)
+    if role10 is not None:
+        data["roles"].append(role10.id)
+        multiple = True
+        for member in role10.members:
+            members.append(member)
 
-                username = cryptocode.decrypt(
-                    LoginPromoJson[str(ctx.user.id)]["login"], DataJson["CRYPT"]
-                )
+    non_inscrit_role = discord.utils.get(ctx.guild.roles, name="Non Inscrit")
 
-                url = DataJson["URL"]
-                url += f"{username}&date={date}"
-
-                browser = await pyppeteer.launch(executablePath=path_exe_chromium)
-                page = await browser.newPage()
-                await page.setViewport({"width": 1920, "height": 1080})
-
-                await page.goto(url)
-
-                await page.addStyleTag({"content": custom_css})
-
-                await page.waitForSelector("body")
-
-                page_source = await page.content()
-                if (
-                    "Server Error in '/' Application." in page_source
-                    or "Erreur de parametres" in page_source
-                ):
-                    print("Erreur détectée dans le HTML. Relance du script...")
-                    await browser.close()
-                else:
-                    await page.screenshot({"path": "Timeable.png"})
-                    await browser.close()
-                    break
-
-            image = Image.open("Timeable.png")
-            pixels_a_rogner = 66
-            largeur, hauteur = image.size
-            image_rognée = image.crop((0, pixels_a_rogner, largeur, hauteur))
-            image_rognée.save("Timeable.png")
-            image.close()
-
-            file = discord.File(f"Timeable.png")
-
-            user = client.get_user(ctx.user.id)
-            await user.send(file=file)
-            await ctx.edit_original_response(
-                content="Ton emploi du temps t'as été envoyé en message ! Verifie bien que tu puisse recevoir des messages de ma part !"
-            )
-            if os.path.exists(f"Timeable.png"):
-                os.remove(f"Timeable.png")
-        else:
-            await ctx.edit_original_response(
-                content="Tu ne possède pas d'identifiants enregitrés, pour cela tu peux effectuer /agenda_enregitrer !"
-            )
-    except Exception as e:
-        logging.error(f'Error in command "agenda": {e}', exc_info=True)
-        send_mail(e, "agenda")
-        await ctx.response.send_message(
-            content="Une erreur s'est produite lors de l'exécution de la commande.",
-            ephemeral=True,
+    if not non_inscrit_role:
+        non_inscrit_role = await ctx.guild.create_role(
+            name="Non Inscrit", color=discord.Color(0xFFFF00)
         )
-        return
+    for member in members:
+        if non_inscrit_role not in member.roles:
+            await member.add_roles(non_inscrit_role)
 
+    with open("participations.json", "w") as file:
+        json.dump(data, file)
 
-@agenda.error
-async def agenda_error(ctx, error):
-    if isinstance(error, discord.app_commands.errors.MissingPermissions):
-        await ctx.edit_original_response(
-            content="Tu n'as pas la permission d'effectuer cette commande !"
-        )
+    await ctx.edit_original_response(
+        content=f"Le{'s' if multiple else ''} rôle{'s' if multiple else ''} {role1.name}{f', {role2.name}' if role2 is not None else ''}{f', {role3.name}' if role3 is not None else ''}{f', {role4.name}' if role4 is not None else ''}{f', {role5.name}' if role5 is not None else ''}{f', {role6.name}' if role6 is not None else ''}{f', {role7.name}' if role7 is not None else ''}{f', {role8.name}' if role8 is not None else ''}{f', {role9.name}' if role9 is not None else ''}{f', {role10.name}' if role10 is not None else ''} {'ont' if multiple else 'a'} été ajouté{'s' if multiple else ''} aux rôles autorisés à participer",
+    )
 
 
 @tree.command(
-    name="agenda_accorder_droit_membre",
-    description="Donne le droit d'acceder a votre emploi du temps a la personne ciblée (de preference de votre promo)",
+    name="atelier_retirer_role",
+    description="Supprimer un/des rôle ayant la possibilité d'utiliser le module atelier",
 )
-@app_commands.describe(membre="Membre a qui donner le droit")
 @app_commands.checks.has_any_role(
     "Team Pedago IPI",
     "Team Entreprise IPI",
     "Team Communication IPI",
     "Directrice IPI",
     "Admin Serveur",
-    "Apprenant IPI",
 )
-async def accorder_droit_membre(ctx, membre: discord.Member):
-    try:
-        await ctx.response.send_message(content="J'y travaille...", ephemeral=True)
+async def atelier_remove_role(
+    ctx,
+    role1: discord.Role,
+    role2: discord.Role = None,
+    role3: discord.Role = None,
+    role4: discord.Role = None,
+    role5: discord.Role = None,
+    role6: discord.Role = None,
+    role7: discord.Role = None,
+    role8: discord.Role = None,
+    role9: discord.Role = None,
+    role10: discord.Role = None,
+):
+    """
+    Remove roles from the list of roles that can use the workshop module.
 
-        with open("login_promo.json") as jsonFile:
-            LoginPromoJson = json.load(jsonFile)
-            jsonFile.close()
-        if str(ctx.user.id) in LoginPromoJson:
-            if str(membre.id) not in LoginPromoJson:
-                nouvelle_entree = {
-                    str(membre.id): {
-                        "login": LoginPromoJson[str(ctx.user.id)]["login"],
-                        "extend": True,
-                    }
-                }
+    Args:
+        ctx: The context of the command.
+        role1 (discord.Role): The first role to remove.
+        role2 (discord.Role, optional): The second role to remove.
+        role3 (discord.Role, optional): The third role to remove.
+        role4 (discord.Role, optional): The fourth role to remove.
+        role5 (discord.Role, optional): The fifth role to remove.
+        role6 (discord.Role, optional): The sixth role to remove.
+        role7 (discord.Role, optional): The seventh role to remove.
+        role8 (discord.Role, optional): The eighth role to remove.
+        role9 (discord.Role, optional): The ninth role to remove.
+        role10 (discord.Role, optional): The tenth role to remove.
+    """
+    with open("participations.json", "r") as file:
+        data = json.load(file)
 
-                LoginPromoJson.update(nouvelle_entree)
+    await ctx.response.send_message(content="J'y travaille...", ephemeral=True)
+    members = []
+    data["roles"].remove(role1.id)
+    multiple = False
+    for member in role1.members:
+        members.append(member)
 
-                with open("login_promo.json", "w") as file:
-                    json.dump(LoginPromoJson, file, indent=4)
-                await ctx.edit_original_response(
-                    content=f"Les accès a ton emploi du temps ont été accordé à <@{membre.id}>"
-                )
-            else:
-                await ctx.edit_original_response(
-                    content=f"<@{membre.id}> possède deja des identifiants"
-                )
-        else:
-            await ctx.edit_original_response(
-                content="Vous ne posséder pas d'identifiants enregistrer identifiants"
-            )
+    if role2 is not None:
+        data["roles"].remove(role2.id)
+        multiple = True
+        for member in role2.members:
+            members.append(member)
+    if role3 is not None:
+        data["roles"].remove(role3.id)
+        multiple = True
+        for member in role3.members:
+            members.append(member)
+    if role4 is not None:
+        data["roles"].remove(role4.id)
+        multiple = True
+        for member in role4.members:
+            members.append(member)
+    if role5 is not None:
+        data["roles"].remove(role5.id)
+        multiple = True
+        for member in role5.members:
+            members.append(member)
+    if role6 is not None:
+        data["roles"].remove(role6.id)
+        multiple = True
+        for member in role6.members:
+            members.append(member)
+    if role7 is not None:
+        data["roles"].remove(role7.id)
+        multiple = True
+        for member in role7.members:
+            members.append(member)
+    if role8 is not None:
+        data["roles"].remove(role8.id)
+        multiple = True
+        for member in role8.members:
+            members.append(member)
+    if role9 is not None:
+        data["roles"].remove(role9.id)
+        multiple = True
+        for member in role9.members:
+            members.append(member)
+    if role10 is not None:
+        data["roles"].remove(role10.id)
+        multiple = True
+        for member in role10.members:
+            members.append(member)
 
-    except Exception as e:
-        logging.error(f'Error in command "accorder_droit_membre": {e}', exc_info=True)
-        send_mail(e, "accorder_droit_membre")
-        await ctx.edit_original_response(
-            content="Une erreur s'est produite lors de l'exécution de la commande."
-        )
-        return
+    non_inscrit_role = discord.utils.get(ctx.guild.roles, name="Non Inscrit")
 
+    if non_inscrit_role:
+        for member in members:
+            if non_inscrit_role in member.roles:
+                await member.remove_roles(non_inscrit_role)
 
-@accorder_droit_membre.error
-async def accorder_droit_membre_error(ctx, error):
-    if isinstance(error, discord.app_commands.errors.MissingPermissions):
-        await ctx.response.send_message(
-            content="Tu n'as pas la permission d'effectuer cette commande !",
-            ephemeral=True,
-        )
+    with open("participations.json", "w") as file:
+        json.dump(data, file)
+
+    await ctx.edit_original_response(
+        content=f"Le{'s' if multiple else ''} rôle{'s' if multiple else ''} {role1.name}{f', {role2.name}' if role2 is not None else ''}{f', {role3.name}' if role3 is not None else ''}{f', {role4.name}' if role4 is not None else ''}{f', {role5.name}' if role5 is not None else ''}{f', {role6.name}' if role6 is not None else ''}{f', {role7.name}' if role7 is not None else ''}{f', {role8.name}' if role8 is not None else ''}{f', {role9.name}' if role9 is not None else ''}{f', {role10.name}' if role10 is not None else ''} ont été supprimés des rôles autorisés à participer",
+    )
 
 
 @tree.command(
-    name="agenda_accorder_droit_role",
-    description="Donne le droit d'acceder a votre emploi du temps a toutes les personnes ayant le role ciblé",
+    name="atelier_liste_role",
+    description="Lister les rôles autorisés à utiliser le module atelier",
 )
-@app_commands.describe(role="Role a qui donner le droit")
 @app_commands.checks.has_any_role(
     "Team Pedago IPI",
     "Team Entreprise IPI",
     "Team Communication IPI",
     "Directrice IPI",
     "Admin Serveur",
-    "Apprenant IPI",
 )
-async def accorder_droit_role(ctx, role: discord.Role):
-    try:
-        await ctx.response.send_message(content="J'y travaille...", ephemeral=True)
+async def atelier_list_role(ctx):
+    """
+    List the roles authorized to use the workshop module.
 
-        roles_interdits = [
-            "Admin Serveur",
-            "Directrice IPI",
-            "Team Communication IPI",
-            "Team Entreprise IPI",
-            "Team Pedago IPI",
-            "Formateur",
-            "League IPI",
-            "YAGPDB.xyz",
-            "IPI Bot",
-            "Alumni",
-            "Apprenant IPI",
-            "Join League",
-            "Aide Infra",
-            "Aide Dev",
-            "Citoyen",
-            "Filière Dev",
-            "Filière Infra",
-            "Membre",
-            "WHOOP",
-        ]
+    Args:
+        ctx: The context of the command.
+    """
+    with open("participations.json", "r") as file:
+        data = json.load(file)
 
-        if role.name in roles_interdits or role not in ctx.user.roles:
-            await ctx.edit_original_response(
-                content="Vous ne pouvez pas accorder ce droit à ce rôle."
+    roles_id = data["roles"]
+    roles = []
+    for role_id in roles_id:
+        roles.append(ctx.guild.get_role(role_id))
+
+    roles_list = ""
+
+    for role in roles:
+        roles_list += f"- {role.name}\n"
+
+    await ctx.response.send_message(
+        content=f"Les rôles autorisés à participer sont :\n{roles_list}", ephemeral=True
+    )
+
+
+@tree.command(
+    name="atelier_max_inscrits_promo",
+    description="Modifier le nombre maximum d'inscrits par promo",
+)
+@app_commands.checks.has_any_role(
+    "Team Pedago IPI",
+    "Team Entreprise IPI",
+    "Team Communication IPI",
+    "Directrice IPI",
+    "Admin Serveur",
+)
+async def atelier_modify_max_inscrits_promo(ctx, max_inscrits: int):
+    """
+    Modify the maximum number of participants per promotion.
+
+    Args:
+        ctx: The context of the command.
+        max_inscrits (int): The maximum number of participants per promotion.
+    """
+    with open("participations.json", "r") as file:
+        data = json.load(file)
+
+    for proposition in data["propositions"]:
+        if len(atelier_get_role_count(ctx, proposition["id"])) > max_inscrits:
+            await ctx.response.send_message(
+                content=f"Le nombre maximum d'inscrits ne peut pas être inférieur au nombre d'inscrits actuel",
+                ephemeral=True,
             )
             return
 
-        with open("login_promo.json") as jsonFile:
-            LoginPromoJson = json.load(jsonFile)
-            jsonFile.close()
+    data["max_inscrits_promo"] = max_inscrits
 
-        for membre in role.members:
-            if str(membre.id) not in LoginPromoJson:
-                nouvelle_entree = {
-                    str(membre.id): {
-                        "login": LoginPromoJson[str(ctx.user.id)]["login"],
-                        "extend": True,
-                    }
-                }
+    with open("participations.json", "w") as file:
+        json.dump(data, file)
 
-                LoginPromoJson.update(nouvelle_entree)
-
-                with open("login_promo.json", "w") as file:
-                    json.dump(LoginPromoJson, file, indent=4)
-
-        await ctx.edit_original_response(
-            content=f"Les accès a ton emploi du temps ont été accordés à toutes les personnes ayant le role {role.mention}"
-        )
-
-    except Exception as e:
-        logging.error(f'Error in command "accorder_droit_role": {e}', exc_info=True)
-        send_mail(e, "accorder_droit_role")
-        await ctx.edit_original_response(
-            content="Une erreur s'est produite lors de l'exécution de la commande."
-        )
-        return
-
-
-@accorder_droit_role.error
-async def accorder_droit_role_error(ctx, error):
-    if isinstance(error, discord.app_commands.errors.MissingPermissions):
-        await ctx.response.send_message(
-            content="Tu n'as pas la permission d'effectuer cette commande !",
-            ephemeral=True,
-        )
+    await ctx.response.send_message(
+        content=f"Le nombre maximum d'inscrits par promo est maintenant de {max_inscrits}",
+        ephemeral=True,
+    )
 
 
 @tree.command(
-    name="agenda_desenregistrer",
-    description="Supprimer toutes les entrées avec votre identifiant",
-)
-@app_commands.describe()
-@app_commands.checks.has_any_role(
-    "Team Pedago IPI",
-    "Team Entreprise IPI",
-    "Team Communication IPI",
-    "Directrice IPI",
-    "Admin Serveur",
-    "Apprenant IPI",
-)
-async def desenregistrer(ctx):
-    try:
-        await ctx.response.send_message(content="J'y travaille...", ephemeral=True)
-
-        with open("login_promo.json", "r") as jsonFile:
-            LoginPromoJson = json.load(jsonFile)
-
-        user_id = str(ctx.user.id)
-        entries_deleted = 0
-
-        keys_to_delete = []
-
-        refIdUnc = cryptocode.decrypt(
-            LoginPromoJson[str(ctx.user.id)]["login"], DataJson["CRYPT"]
-        )
-        refId = LoginPromoJson[str(ctx.user.id)]["login"]
-        is_author = LoginPromoJson[user_id]["extend"] == False
-
-        if is_author:
-            for user_key, user_data in LoginPromoJson.items():
-                if user_data["login"] == refId:
-                    keys_to_delete.append(user_key)
-                    entries_deleted += 1
-
-            for key in keys_to_delete:
-                del LoginPromoJson[key]
-
-            if entries_deleted > 0:
-                with open("login_promo.json", "w") as file:
-                    json.dump(LoginPromoJson, file, indent=4)
-
-                await ctx.edit_original_response(
-                    content=f"Toutes les entrées avec l'identifiant '{refIdUnc}' ont été supprimées avec succès"
-                )
-
-            else:
-                await ctx.edit_original_response(
-                    content=f"Aucune entrée avec ton identifiant n'a été trouvée."
-                )
-        else:
-            del LoginPromoJson[user_id]
-            with open("login_promo.json", "w") as file:
-                json.dump(LoginPromoJson, file, indent=4)
-            await ctx.edit_original_response(
-                content=f"Tes identifiants ont bien été supprimées"
-            )
-
-    except Exception as e:
-        logging.error(f'Error in command "desenregistrer": {e}', exc_info=True)
-        send_mail(e, "desenregitrer")
-        await ctx.edit_original_response(
-            content="Une erreur s'est produite lors de l'exécution de la commande."
-        )
-
-
-@desenregistrer.error
-async def desenregistrer_error(ctx, error):
-    if isinstance(error, discord.app_commands.errors.MissingPermissions):
-        await ctx.response.send_message(
-            content="Tu n'as pas la permission d'effectuer cette commande !",
-            ephemeral=True,
-        )
-
-
-@tree.command(name="agenda_eleve", description="Affiche l'agenda pour la semaine")
-@app_commands.describe(
-    membre="Vous allez visiualiser l'agenda de cette personne si elle s'est authentifiée (il est possible que l'emploi du temps soit celui d'une autre personne si elle lui a donnée l'acces a ce dernier)",
-    date="Agenda a la date du : (au format jour/mois/année exemple : 05/04/2024)",
+    name="atelier_max_inscrits", description="Modifier le nombre maximum d'inscrits"
 )
 @app_commands.checks.has_any_role(
     "Team Pedago IPI",
@@ -464,493 +821,47 @@ async def desenregistrer_error(ctx, error):
     "Directrice IPI",
     "Admin Serveur",
 )
-async def agenda_eleve(ctx, membre: discord.Member, date: str = ""):
-    try:
-        await ctx.response.send_message(
-            content="J'y travaille... (cela peut prendre plusieurs secondes)",
-            ephemeral=True,
-        )
+async def atelier_modify_max_inscrits(ctx, max_inscrits: int):
+    """
+    Modify the maximum number of participants.
 
-        with open("login_promo.json") as jsonFile:
-            LoginPromoJson = json.load(jsonFile)
-            jsonFile.close()
-        if str(membre.id) in LoginPromoJson:
-            if date == "":
-                date = datetime.now().strftime("%m/%d/%Y")
-            else:
-                try:
-                    date = (
-                        datetime.strptime(date, "%d/%m/%Y").date().strftime("%m/%d/%Y")
-                    )
-                except ValueError:
-                    await ctx.edit_original_response(
-                        content="Le format de la date fournit n'est pas valide la date doit etre le la forme jj/mm/aaaa"
-                    )
+    Args:
+        ctx: The context of the command.
+        max_inscrits (int): The maximum number of participants.
+    """
+    with open("participations.json", "r") as file:
+        data = json.load(file)
 
-                    return
-            max_attempts = 3
-
-            for attempt in range(max_attempts):
-                if attempt > 0:
-                    print(f"Tentative {attempt + 1}...")
-
-                username = cryptocode.decrypt(
-                    LoginPromoJson[str(ctx.user.id)]["login"], DataJson["CRYPT"]
-                )
-
-                url = DataJson["URL"]
-                url += f"{username}&date={date}"
-
-                browser = await pyppeteer.launch(executablePath=path_exe_chromium)
-                page = await browser.newPage()
-                await page.setViewport({"width": 1920, "height": 1080})
-
-                await page.goto(url)
-                await page.addStyleTag({"content": custom_css})
-
-                await page.waitForSelector("body")
-
-                page_source = await page.content()
-                if (
-                    "Server Error in '/' Application." in page_source
-                    or "Erreur de parametres" in page_source
-                ):
-                    print("Erreur détectée dans le HTML. Relance du script...")
-                    await browser.close()
-                else:
-                    await page.screenshot({"path": "Timeable.png"})
-                    await browser.close()
-                    break
-
-            image = Image.open("Timeable.png")
-            pixels_a_rogner = 66
-            largeur, hauteur = image.size
-            image_rognée = image.crop((0, pixels_a_rogner, largeur, hauteur))
-            image_rognée.save("Timeable.png")
-            image.close()
-
-            file = discord.File(f"Timeable.png")
-            if os.path.exists(f"Timeable.png"):
-                try:
-                    os.remove(f"Timeable.png")
-                except:
-                    pass
-            await ctx.edit_original_response(
-                content="L'emploi du temps de "
-                + membre.nick
-                + " a été envoyé par message!"
-            )
-            user = client.get_user(ctx.user.id)
-            await user.send(
-                file=file, content=f"Voici l'emploi du temps de {membre.nick}"
-            )
-        else:
-            await ctx.edit_original_response(
-                content="Cette personne ne possède pas d'identifiants enregitrés !"
-            )
-    except Exception as e:
-        logging.error(f'Error in command "agenda_eleve": {e}', exc_info=True)
-        send_mail(e, "agenda_eleve")
-        await ctx.edit_original_response(
-            content="Une erreur s'est produite lors de l'exécution de la commande."
-        )
-        return
-
-
-@agenda_eleve.error
-async def agenda_eleve_error(ctx, error):
-    if isinstance(error, discord.app_commands.errors.MissingPermissions):
-        await ctx.response.send_message(
-            content="Tu n'as pas la permission d'effectuer cette commande !",
-            ephemeral=True,
-        )
-
-
-@tree.command(name="agenda_promo", description="Affiche l'agenda pour la semaine")
-@app_commands.describe(
-    role="Vous allez visiualiser l'agenda de cette promo si une personne s'est authentifiée (il est possible que l'emploi du temps soit celui d'une autre personne si elle lui a donnée l'acces a ce dernier)",
-    date="Agenda a la date du : (au format jour/mois/année exemple : 05/04/2024)",
-)
-@app_commands.checks.has_any_role(
-    "Team Pedago IPI",
-    "Team Entreprise IPI",
-    "Team Communication IPI",
-    "Directrice IPI",
-    "Admin Serveur",
-)
-async def agenda_promo(ctx, role: discord.Role, date: str = ""):
-    try:
-        await ctx.response.send_message(
-            content="J'y travaille... (cela peut prendre plusieurs secondes)",
-            ephemeral=True,
-        )
-        enregitre = False
-        with open("login_promo.json") as jsonFile:
-            LoginPromoJson = json.load(jsonFile)
-            jsonFile.close()
-        for membre in role.members:
-            if str(membre.id) in LoginPromoJson:
-                enregitre = True
-                if date == "":
-                    date = datetime.now().strftime("%m/%d/%Y")
-                else:
-                    try:
-                        date = (
-                            datetime.strptime(date, "%d/%m/%Y")
-                            .date()
-                            .strftime("%m/%d/%Y")
-                        )
-                    except ValueError:
-                        await ctx.edit_original_response(
-                            content="Le format de la date fournit n'est pas valide la date doit etre le la forme jj/mm/aaaa"
-                        )
-
-                        return
-                max_attempts = 3
-
-                for attempt in range(max_attempts):
-                    if attempt > 0:
-                        print(f"Tentative {attempt + 1}...")
-
-                    username = cryptocode.decrypt(
-                        LoginPromoJson[str(ctx.user.id)]["login"], DataJson["CRYPT"]
-                    )
-
-                    url = DataJson["URL"]
-                    url += f"{username}&date={date}"
-
-                    browser = await pyppeteer.launch(executablePath=path_exe_chromium)
-                    page = await browser.newPage()
-                    await page.setViewport({"width": 1920, "height": 1080})
-
-                    await page.goto(url)
-                    await page.addStyleTag({"content": custom_css})
-
-                    await page.waitForSelector("body")
-
-                    page_source = await page.content()
-                    if (
-                        "Server Error in '/' Application." in page_source
-                        or "Erreur de parametres" in page_source
-                    ):
-                        print("Erreur détectée dans le HTML. Relance du script...")
-                        await browser.close()
-                    else:
-                        await page.screenshot({"path": "Timeable.png"})
-                        await browser.close()
-                        break
-
-                image = Image.open("Timeable.png")
-                pixels_a_rogner = 66
-                largeur, hauteur = image.size
-                image_rognée = image.crop((0, pixels_a_rogner, largeur, hauteur))
-                image_rognée.save("Timeable.png")
-                image.close()
-
-                file = discord.File(f"Timeable.png")
-                if os.path.exists(f"Timeable.png"):
-                    try:
-                        os.remove(f"Timeable.png")
-                    except:
-                        pass
-                await ctx.edit_original_response(
-                    content="L'emploi du temps de "
-                    + membre.nick
-                    + " a été envoyé par message!"
-                )
-                user = client.get_user(ctx.user.id)
-                await user.send(
-                    file=file, content=f"Voici l'emploi du temps de {membre.nick}"
-                )
-        if not enregitre:
-            await ctx.edit_original_response(
-                content="Personne ne possède d'identifiants enregitrés dans cette promo!"
-            )
-    except Exception as e:
-        logging.error(f'Error in command "agenda_promo": {e}', exc_info=True)
-        send_mail(e, "agenda_promo")
-        await ctx.edit_original_response(
-            content="Une erreur s'est produite lors de l'exécution de la commande."
-        )
-        return
-
-
-@agenda_promo.error
-async def agenda_promo_error(ctx, error):
-    if isinstance(error, discord.app_commands.errors.MissingPermissions):
-        await ctx.response.send_message(
-            content="Tu n'as pas la permission d'effectuer cette commande !",
-            ephemeral=True,
-        )
-
-
-@tree.command(
-    name="agenda_enregistrer",
-    description="S'enregitrer pour avoir acces a son emploi du temps sur discord",
-)
-@app_commands.describe(identifiant="Identifiant de connection MonCampus")
-@app_commands.checks.has_any_role(
-    "Team Pedago IPI",
-    "Team Entreprise IPI",
-    "Team Communication IPI",
-    "Directrice IPI",
-    "Admin Serveur",
-    "Apprenant IPI",
-)
-async def enregitrer(ctx, identifiant: str):
-    try:
-        await ctx.response.send_message(content="J'y travaille...", ephemeral=True)
-
-        with open("login_promo.json") as jsonFile:
-            LoginPromoJson = json.load(jsonFile)
-            jsonFile.close()
-        if str(ctx.user.id) not in LoginPromoJson:
-            nouvelle_entree = {
-                str(ctx.user.id): {
-                    "login": cryptocode.encrypt(identifiant, DataJson["CRYPT"]),
-                    "extend": False,
-                }
-            }
-
-            LoginPromoJson.update(nouvelle_entree)
-
-            with open("login_promo.json", "w") as file:
-                json.dump(LoginPromoJson, file, indent=4)
-            await ctx.edit_original_response(
-                content="Tes identifiants ont bien été enregitrés"
-            )
-        else:
-            await ctx.edit_original_response(
-                content="Vous posséder deja des identifiants enregistrés"
-            )
-    except Exception as e:
-        logging.error(f'Error in command "enregitrer": {e}', exc_info=True)
-        send_mail(e, "enregistrer")
-        await ctx.edit_original_response(
-            content="Une erreur s'est produite lors de l'exécution de la commande."
-        )
-        return
-
-
-@enregitrer.error
-async def enregitrer_error(ctx, error):
-    if isinstance(error, discord.app_commands.errors.MissingPermissions):
-        await ctx.response.send_message(
-            content="Tu n'as pas la permission d'effectuer cette commande !",
-            ephemeral=True,
-        )
-
-
-@tree.command(
-    name="agenda_modifier", description="Modifier les identifiants enregistrés"
-)
-@app_commands.describe(identifiant="Nouvel identifiant de connection MonCampus")
-@app_commands.checks.has_any_role(
-    "Team Pedago IPI",
-    "Team Entreprise IPI",
-    "Team Communication IPI",
-    "Directrice IPI",
-    "Admin Serveur",
-    "Apprenant IPI",
-)
-async def agenda_modifier(ctx, identifiant: str):
-    try:
-        await ctx.response.send_message(content="J'y travaille...", ephemeral=True)
-
-        with open("login_promo.json", "r") as jsonFile:
-            LoginPromoJson = json.load(jsonFile)
-
-        updated_entries = 0
-
-        refId = LoginPromoJson[str(ctx.user.id)]["login"]
-
-        for user_key, user_data in LoginPromoJson.items():
-            if user_data["login"] == refId:
-                user_data["login"] = identifiant
-                user_data["extend"] = False
-                updated_entries += 1
-
-        if updated_entries > 0:
-            with open("login_promo.json", "w") as file:
-                json.dump(LoginPromoJson, file, indent=4)
-
-            await ctx.edit_original_response(
-                content=f"Identifiant mit a jour avec succès"
-            )
-
-        else:
-            await ctx.edit_original_response(
-                content="Aucun identifiant enregistré trouvé pour votre utilisateur."
-            )
-
-    except Exception as e:
-        logging.error(f'Error in command "agenda_modifier": {e}', exc_info=True)
-        send_mail(e, "agenda_modifier")
-        await ctx.edit_original_response(
-            content="Une erreur s'est produite lors de l'exécution de la commande."
-        )
-
-
-@agenda_modifier.error
-async def agenda_modifier_error(ctx, error):
-    if isinstance(error, discord.app_commands.errors.MissingPermissions):
-        await ctx.response.send_message(
-            content="Tu n'as pas la permission d'effectuer cette commande !",
-            ephemeral=True,
-        )
-
-
-@tree.command(
-    name="agenda_retirer_droit_membre",
-    description="Retire le droit d'acceder a votre emploi du temps a la personne ciblée",
-)
-@app_commands.describe(membre="Membre a qui retirer le droit")
-@app_commands.checks.has_any_role(
-    "Team Pedago IPI",
-    "Team Entreprise IPI",
-    "Team Communication IPI",
-    "Directrice IPI",
-    "Admin Serveur",
-    "Apprenant IPI",
-)
-async def retirer_droit_membre(ctx, membre: discord.Member):
-    try:
-        await ctx.response.send_message(content="J'y travaille...", ephemeral=True)
-
-        with open("login_promo.json") as jsonFile:
-            LoginPromoJson = json.load(jsonFile)
-            jsonFile.close()
-        if str(ctx.user.id) in LoginPromoJson:
-            if str(membre.id) in LoginPromoJson:
-                if (
-                    (LoginPromoJson[str(ctx.user.id)]["extend"] == False)
-                    and (ctx.user.id != membre.id)
-                    and LoginPromoJson[str(ctx.user.id)]["login"]
-                    == LoginPromoJson[str(membre.id)]["login"]
-                ):
-                    del LoginPromoJson[str(membre.id)]
-
-                    with open("login_promo.json", "w") as file:
-                        json.dump(LoginPromoJson, file, indent=4)
-                    await ctx.edit_original_response(
-                        content=f"Les accès a ton emploi du temps ont été retirer à <@{membre.id}>"
-                    )
-                else:
-                    await ctx.edit_original_response(
-                        content="Vous ne posseder pas le droit de retirer les permissions a cette personnes"
-                    )
-            else:
-                await ctx.edit_original_response(
-                    content="Cette personne ne possède pas d'identifiants enregitrés"
-                )
-        else:
-            await ctx.edit_original_response(
-                content="Vous ne posséder pas d'identifiants enregistrés identifiants"
-            )
-    except Exception as e:
-        logging.error(f'Error in command "retirer_droit_membre": {e}', exc_info=True)
-        send_mail(e, "retirer_droit_membre")
-        await ctx.edit_original_response(
-            content="Une erreur s'est produite lors de l'exécution de la commande."
-        )
-        return
-
-
-@retirer_droit_membre.error
-async def retirer_droit_membre_error(ctx, error):
-    if isinstance(error, discord.app_commands.errors.MissingPermissions):
-        await ctx.response.send_message(
-            content="Tu n'as pas la permission d'effectuer cette commande !",
-            ephemeral=True,
-        )
-
-
-@tree.command(
-    name="agenda_retirer_droit_role",
-    description="Retire le droit d'acceder a votre emploi du temps a toutes les personnes ayant le role ciblé",
-)
-@app_commands.describe(role="Role a qui retirer le droit")
-@app_commands.checks.has_any_role(
-    "Team Pedago IPI",
-    "Team Entreprise IPI",
-    "Team Communication IPI",
-    "Directrice IPI",
-    "Admin Serveur",
-    "Apprenant IPI",
-)
-async def retirer_droit_role(ctx, role: discord.Role):
-    roles_interdits = [
-        "Admin Serveur",
-        "Directrice IPI",
-        "Team Communication IPI",
-        "Team Entreprise IPI",
-        "Team Pedago IPI",
-        "Formateur",
-        "League IPI",
-        "YAGPDB.xyz",
-        "IPI Bot",
-        "Alumni",
-        "Apprenant IPI",
-        "Join League",
-        "Aide Infra",
-        "Aide Dev",
-        "Citoyen",
-        "Filière Dev",
-        "Filière Infra",
-        "Membre",
-        "WHOOP",
+    participations = data["participations"]
+    participation_ids = [
+        participation_id
+        for participation_ids_list in participations.values()
+        if participation_ids_list is not None
+        for participation_id in participation_ids_list
     ]
-    try:
-        if role.name in roles_interdits or role not in ctx.user.roles:
-            await ctx.edit_original_response(
-                content="Vous ne pouvez pas retirer ce droit à ce role."
+
+    for proposition in data["propositions"]:
+        if participation_ids.count(proposition["id"]) > max_inscrits:
+            await ctx.response.send_message(
+                content=f"Le nombre maximum d'inscrits ne peut pas être inférieur au nombre d'inscrits actuel",
+                ephemeral=True,
             )
             return
 
-        await ctx.response.send_message(content="J'y travaille...", ephemeral=True)
+    data["max_inscrits"] = max_inscrits
 
-        with open("login_promo.json") as jsonFile:
-            LoginPromoJson = json.load(jsonFile)
-            jsonFile.close()
+    with open("participations.json", "w") as file:
+        json.dump(data, file)
 
-        for membre in role.members:
-            if (
-                (str(membre.id) in LoginPromoJson)
-                and (LoginPromoJson[str(ctx.user.id)]["extend"] == False)
-                and (ctx.user.id != membre.id)
-                and LoginPromoJson[str(ctx.user.id)]["login"]
-                == LoginPromoJson[str(membre.id)]["login"]
-            ):
-                del LoginPromoJson[str(membre.id)]
-
-                with open("login_promo.json", "w") as file:
-                    json.dump(LoginPromoJson, file, indent=4)
-
-        await ctx.edit_original_response(
-            content=f"Les accès a ton emploi du temps ont été retirer à toutes les personnes ayant le role {role.mention}"
-        )
-
-    except Exception as e:
-        logging.error(f'Error in command "retirer_droit_role": {e}', exc_info=True)
-        send_mail(e, "retirer_droit_role")
-        await ctx.edit_original_response(
-            content="Une erreur s'est produite lors de l'exécution de la commande."
-        )
-        return
-
-
-@retirer_droit_role.error
-async def retirer_droit_role_error(ctx, error):
-    if isinstance(error, discord.app_commands.errors.MissingPermissions):
-        await ctx.response.send_message(
-            content="Tu n'as pas la permission d'effectuer cette commande !",
-            ephemeral=True,
-        )
+    await ctx.response.send_message(
+        content=f"Le nombre maximum d'inscrits par atelier est maintenant de {max_inscrits}",
+        ephemeral=True,
+    )
 
 
 @tree.command(
-    name="agenda_voir_partage_droit",
-    description="Voir les membres avec qui vous partagez votre agenda",
+    name="atelier_max_inscription",
+    description="Modifier le nombre maximum d'ateliers auxquels il est possible de participer",
 )
 @app_commands.checks.has_any_role(
     "Team Pedago IPI",
@@ -958,71 +869,800 @@ async def retirer_droit_role_error(ctx, error):
     "Team Communication IPI",
     "Directrice IPI",
     "Admin Serveur",
-    "Apprenant IPI",
 )
-async def voir_membres_droit(ctx):
-    try:
-        await ctx.response.send_message(content="J'y travaille...", ephemeral=True)
-        with open("login_promo.json") as jsonFile:
-            LoginPromoJson = json.load(jsonFile)
+async def atelier_modify_max_inscription(ctx, max_inscription: int):
+    """
+    Modify the maximum number of workshops a user can participate in.
 
-        user_login = LoginPromoJson.get(str(ctx.user.id), {}).get("login", None)
+    Args:
+        ctx: The context of the command.
+        max_inscription (int): The maximum number of workshops a user can participate in.
+    """
+    with open("participations.json", "r") as file:
+        data = json.load(file)
 
-        if user_login:
-            matching_members = [
-                member_id
-                for member_id, member_data in LoginPromoJson.items()
-                if member_data.get("login") == user_login
-                and member_data.get("extend", False)
-            ]
+    if max_inscription < 1:
+        await ctx.response.send_message(
+            content="Le nombre maximum d'ateliers auxquels il est possible de participer doit être d'au moins 1.",
+            ephemeral=True,
+        )
+        return
 
-            if matching_members:
-                member_mentions = [f"<@{member_id}>" for member_id in matching_members]
-                await ctx.edit_original_response(
-                    content=f"Les membres avec qui vous partager votre agenda sont : {', '.join(member_mentions)}"
+    for user_id, participations_list in data["participations"].items():
+        if (
+            participations_list is not None
+            and len(participations_list) > max_inscription
+        ):
+            await ctx.response.send_message(
+                content=f"Le nombre maximum d'ateliers auxquels il est possible de participer ne peut pas être inférieur au nombre d'ateliers auxquels {ctx.guild.get_member(int(user_id)).display_name} est déjà inscrit(e).",
+                ephemeral=True,
+            )
+            return
+
+    data["max_inscription"] = max_inscription
+
+    with open("participations.json", "w") as file:
+        json.dump(data, file)
+
+    await ctx.response.send_message(
+        content=f"Le nombre maximum d'ateliers auxquels on peut participer est maintenant de {max_inscription}.",
+        ephemeral=True,
+    )
+
+
+@tree.command(
+    name="atelier_label_bouton",
+    description="Modifier le texte du bouton (ne doit pas depasser 80 caractères)",
+)
+@app_commands.checks.has_any_role(
+    "Team Pedago IPI",
+    "Team Entreprise IPI",
+    "Team Communication IPI",
+    "Directrice IPI",
+    "Admin Serveur",
+)
+async def atelier_modify_button_label(ctx, button_label: str):
+    """
+    Modify the button label.
+
+    Args:
+        ctx: The context of the command.
+        button_label (str): The new button label.
+    """
+    with open("participations.json", "r") as file:
+        data = json.load(file)
+    if len(button_label) > 80:
+        await ctx.response.send_message(
+            content="Le texte du bouton ne peut pas dépasser 80 caractères.",
+            ephemeral=True,
+        )
+        return
+
+    data["button_label"] = button_label
+
+    with open("participations.json", "w") as file:
+        json.dump(data, file)
+
+    for view in client.persistent_views:
+        if isinstance(view, MyViewAtelier):
+            view.children[0].label = data["button_label"]
+
+    for propositions in data["propositions"]:
+        proposition_id = propositions["id"]
+        view = MyViewAtelier()
+        view.children[0].label = data["button_label"]
+        message_id = int(propositions["message_id"])
+        channel_id = int(propositions["channel_id"])
+        channel = client.get_channel(channel_id)
+
+        if channel:
+            message = await channel.fetch_message(message_id)
+            await message.edit(
+                view=view, content=message.content, embed=message.embeds[0]
+            )
+            client.add_view(view, message_id=int(propositions["message_id"]))
+
+    await ctx.response.send_message(
+        content=f"Le texte du bouton est maintenant {button_label}", ephemeral=True
+    )
+
+
+@tree.command(
+    name="atelier_config",
+    description="Afficher les informations de configuration du module atelier",
+)
+@app_commands.checks.has_any_role(
+    "Team Pedago IPI",
+    "Team Entreprise IPI",
+    "Team Communication IPI",
+    "Directrice IPI",
+    "Admin Serveur",
+)
+async def atelier_show_config(ctx):
+    """
+    Show the configuration information of the workshop module.
+
+    Args:
+        ctx: The context of the command.
+    """
+    with open("participations.json", "r") as file:
+        data = json.load(file)
+
+    roles_id = data["roles"]
+    roles = []
+    for role_id in roles_id:
+        roles.append(ctx.guild.get_role(role_id))
+
+    roles_list = ""
+
+    for role in roles:
+        roles_list += f"- {role.name}\n"
+
+    atelier_list = ""
+    for proposition in data["propositions"]:
+        atelier_list += f"- {proposition['titre']}\n"
+
+    if data["active"]:
+        active = "Inscriptions ouvertes"
+    else:
+        active = "Inscriptions fermées"
+
+    embed = discord.Embed(
+        title="__Configuration__",
+        description="Voici les informations de configuration :",
+        color=discord.Color.green(),
+    )
+
+    embed.add_field(
+        name=f"Statut des inscriptions :",
+        value=f"{active}",
+        inline=False,
+    )
+
+    embed.add_field(
+        name=f"Libellé du bouton :",
+        value=f"{data['button_label']}",
+        inline=False,
+    )
+
+    embed.add_field(
+        name=f"Nombre maximum d'inscrits par atelier :",
+        value=f"{data['max_inscrits']}",
+        inline=False,
+    )
+
+    embed.add_field(
+        name=f"Nombre maximum d'inscrits par promo :",
+        value=f"{data['max_inscrits_promo']}",
+        inline=False,
+    )
+
+    embed.add_field(
+        name="Nombre d'inscription possible par utilisateur",
+        value=f"{data['max_inscription']}",
+        inline=False,
+    )
+
+    embed.add_field(
+        name=f"Rôles autorisés à participer :",
+        value=f"{roles_list}",
+        inline=False,
+    )
+
+    embed.add_field(
+        name=f"Ateliers :",
+        value=f"{atelier_list}",
+        inline=False,
+    )
+
+    await ctx.response.send_message(embed=embed, ephemeral=True)
+
+
+@client.event
+async def on_button_click(interaction: discord.Interaction, button: discord.ui.Button):
+    """
+    Event handler for button clicks.
+    """
+    if "button" in button.custom_id:
+        view = client.get_view(button.view.id)
+        await view.button_callback(interaction, button)
+
+
+@tree.command(
+    name="atelier_supprimer",
+    description="Supprimer toutes les données et inscriptions du module atelier",
+)
+@app_commands.checks.has_any_role(
+    "Team Pedago IPI",
+    "Team Entreprise IPI",
+    "Team Communication IPI",
+    "Directrice IPI",
+    "Admin Serveur",
+)
+async def atelier_clear_all(ctx):
+    """
+    Clear all data and registrations of the workshop module.
+
+    Args:
+        ctx: The context of the command.
+    """
+    with open("participations.json", "r") as file:
+        data = json.load(file)
+
+    await ctx.response.send_message(content="J'y travaille...", ephemeral=True)
+
+    channel = client.get_channel(ctx.channel_id)
+    for propositions in data["propositions"]:
+        try:
+            message = await channel.fetch_message(propositions["message_id"])
+            await message.delete()
+        except discord.errors.NotFound:
+            pass
+    if data["result_id"] != 0:
+        message = await channel.fetch_message(data["result_id"])
+        await message.delete()
+
+    data = {
+        "max_inscription": 2,
+        "max_inscrits": 14,
+        "max_inscrits_promo": 4,
+        "roles": [],
+        "propositions": [],
+        "participations": {},
+        "next_proposition_id": 1,
+        "result_id": 0,
+        "active": False,
+        "button_label": "S'inscrire à l'Atelier",
+    }
+
+    with open("participations.json", "w") as file:
+        json.dump(data, file)
+
+    await ctx.edit_original_response(content="Toutes les données ont été supprimées")
+
+
+@tree.command(
+    name="atelier_inscriptions", description="Afficher les inscrits des ateliers"
+)
+@app_commands.checks.has_any_role(
+    "Team Pedago IPI",
+    "Team Entreprise IPI",
+    "Team Communication IPI",
+    "Directrice IPI",
+    "Admin Serveur",
+)
+async def atelier_show_inscrits(ctx):
+    """
+    Show the participants of the workshops.
+
+    Args:
+        ctx: The context of the command.
+    """
+    await ctx.response.send_message(content="J'y travaille...", ephemeral=True)
+
+    with open("participations.json", "r") as file:
+        data = json.load(file)
+
+    for proposition in data["propositions"]:
+        embed = discord.Embed(
+            title="Inscriptions",
+            description="Voici les inscrits aux ateliers :",
+            color=discord.Color.green(),
+        )
+        proposition_id = proposition["id"]
+        proposition_titre = proposition["titre"]
+        proposition_voters = ""
+        for voter in data["participations"]:
+            if proposition_id in data["participations"][voter]:
+                member = ctx.guild.get_member(int(voter))
+                if member:
+                    proposition_voters += f"- {member.display_name}\n"
+                else:
+                    print(voter)
+        embed.add_field(
+            name=f"Atelier : {proposition_titre}",
+            value=f"{proposition_voters}",
+            inline=False,
+        )
+        user = client.get_user(ctx.user.id)
+        await user.send(embed=embed)
+    await ctx.edit_original_response(
+        content="Les inscrits ont été envoyés en message privé"
+    )
+
+
+@tree.command(
+    name="atelier_non_inscriptions",
+    description="Afficher les personnes ne s'etant pas inscrits",
+)
+@app_commands.checks.has_any_role(
+    "Team Pedago IPI",
+    "Team Entreprise IPI",
+    "Team Communication IPI",
+    "Directrice IPI",
+    "Admin Serveur",
+)
+async def atelier_non_inscrit(ctx):
+    """
+    Show the people who have not registered.
+
+    Args:
+        ctx: The context of the command.
+    """
+    await ctx.response.send_message(content="J'y travaille...", ephemeral=True)
+
+    with open("participations.json", "r") as file:
+        data = json.load(file)
+
+    roles_id = data["roles"]
+    roles = []
+    for role_id in roles_id:
+        roles.append(ctx.guild.get_role(role_id))
+
+    for role in roles:
+        non_participants = []
+        for member in role.members:
+            member_id = str(member.id)
+            if member_id not in data["participations"]:
+                non_participants.append({f"{member_id}": 0})
+
+            elif len(data["participations"][member_id]) < data["max_inscription"]:
+                non_participants.append(
+                    {f"{member_id}": len(data["participations"][member_id])}
                 )
-            else:
-                await ctx.edit_original_response(
-                    content="Vous ne partagez actuellement pas votre agenda"
-                )
+
+        non_participant_text = f"Les personnes n'ayant pas participer suffisamment de fois de la promo {role.name} sont : \nNom de la personne (Nombre d'atelier auquel il/elle est inscrit)\n\n"
+        for member_data in non_participants:
+            for member_id, participation_time in member_data.items():
+                non_participant_text += f"- **{ctx.guild.get_member(int(member_id)).display_name}** ({participation_time})\n"
+
+        if len(non_participant_text) != 0:
+            user = client.get_user(ctx.user.id)
+            await user.send(content=non_participant_text)
         else:
             await ctx.edit_original_response(
-                content="Vous ne possédez pas d'identifiants enregistrés."
+                content=f"Toutes les personnes de la promo {role.name} ont votés {data['max_inscription']} fois"
             )
 
-    except Exception as e:
-        logging.error(f'Error in command "voir_membres_droit": {e}', exc_info=True)
-        send_mail(e, "voir_membres_droit")
+    await ctx.edit_original_response(
+        content="Les personnes n'ayant pas participer suffisamment de fois ont été envoyés en message privé"
+    )
+
+
+async def atelier_result_in_time(interaction, msg_delete: bool = False):
+    """
+    Display real-time workshop results.
+
+    Args:
+        interaction: The interaction object.
+        msg_delete (bool): Whether to delete the previous result message.
+    """
+    with open("participations.json", "r") as file:
+        data = json.load(file)
+
+    participations = data["participations"]
+    participation_ids = [
+        participation_id
+        for participation_ids_list in participations.values()
+        if participation_ids_list is not None
+        for participation_id in participation_ids_list
+    ]
+
+    propositions_data = data["propositions"]
+
+    embed = discord.Embed(
+        title="Ateliers",
+        description="Voici les participants actuellement enregistrées :",
+        color=discord.Color.green(),
+    )
+
+    max_votes = 0
+    for proposition in propositions_data:
+        proposition_id = proposition["id"]
+        proposition_titre = proposition["titre"]
+        vote_count = participation_ids.count(proposition_id)
+        if vote_count > max_votes:
+            max_votes = vote_count
+            proposition_max = proposition
+
+        embed.add_field(
+            name=f"Atelier : {proposition_titre}",
+            value=f"- {vote_count} participant{'s' if vote_count > 1 else ''}{' - Places non disponibles' if vote_count >= data['max_inscrits'] else ''}",
+            inline=False,
+        )
+
+    if max_votes > 0:
+        if msg_delete or data["result_id"] == 0:
+            if data["result_id"] != 0:
+                channel = interaction.channel
+                message = await channel.fetch_message(data["result_id"])
+                await message.delete()
+
+            message = await interaction.channel.send(embed=embed)
+
+            data["result_id"] = message.id
+
+            with open("participations.json", "w") as file:
+                json.dump(data, file)
+        else:
+            channel = interaction.channel
+            message = await channel.fetch_message(data["result_id"])
+            await message.edit(embed=embed)
+
+
+@tree.command(
+    name="atelier_activer", description="Active les inscriptions pour les ateliers"
+)
+@app_commands.checks.has_any_role(
+    "Team Pedago IPI",
+    "Team Entreprise IPI",
+    "Team Communication IPI",
+    "Directrice IPI",
+    "Admin Serveur",
+)
+async def activate_participation(ctx):
+    """
+    Activate registrations for workshops.
+
+    Args:
+        ctx: The context of the command.
+    """
+    with open("participations.json", "r") as file:
+        data = json.load(file)
+
+    data["active"] = True
+
+    with open("participations.json", "w") as file:
+        json.dump(data, file)
+
+    await ctx.response.send_message(
+        content="Les inscriptions sont maintenant ouvertes", ephemeral=True
+    )
+
+
+@tree.command(
+    name="atelier_desactiver",
+    description="Desactive les inscriptions pour les ateliers",
+)
+@app_commands.checks.has_any_role(
+    "Team Pedago IPI",
+    "Team Entreprise IPI",
+    "Team Communication IPI",
+    "Directrice IPI",
+    "Admin Serveur",
+)
+async def deactivate_participation(ctx):
+    """
+    Deactivate registrations for workshops.
+
+    Args:
+        ctx: The context of the command.
+    """
+    with open("participations.json", "r") as file:
+        data = json.load(file)
+
+    data["active"] = False
+
+    with open("participations.json", "w") as file:
+        json.dump(data, file)
+
+    await ctx.response.send_message(
+        content="Les inscriptions sont désormais fermées", ephemeral=True
+    )
+
+
+@tree.command(
+    name="atelier_relance", description="Relance les personnes n'etant pas inscrits"
+)
+@app_commands.checks.has_any_role(
+    "Team Pedago IPI",
+    "Team Entreprise IPI",
+    "Team Communication IPI",
+    "Directrice IPI",
+    "Admin Serveur",
+)
+async def atelier_relance(ctx):
+    """
+    Remind people who have not registered.
+
+    Args:
+        ctx: The context of the command.
+    """
+    with open("participations.json", "r") as file:
+        data = json.load(file)
+
+    channel = client.get_channel(ctx.channel_id)
+    role = discord.utils.get(ctx.guild.roles, name="Non Inscrit")
+
+    if role:
+        await channel.send(
+            content=f"{role.mention} Vous n'etes pas encore inscrits à {data['max_inscription']} atelier{'s' if data['max_inscription'] > 1 else ''}, n'oubliez pas de vous inscrire !"
+        )
         await ctx.response.send_message(
-            content="Une erreur s'est produite lors de l'exécution de la commande.",
+            content="Les personnes n'etant pas inscrites ont été relancées",
             ephemeral=True,
+        )
+    else:
+        await ctx.response.send_message(
+            content="Une erreur s'est produite", ephemeral=True
         )
 
 
-@voir_membres_droit.error
-async def voir_membres_droit_error(ctx, error):
-    if isinstance(error, discord.app_commands.errors.MissingPermissions):
-        await ctx.response.send_message(
-            content="Tu n'as pas la permission d'effectuer cette commande !",
-            ephemeral=True,
+def atelier_get_role_count(ctx: discord.Interaction, proposition_id: int):
+    """
+    Get the count of roles for a proposition.
+
+    Args:
+        ctx (discord.Interaction): The interaction object.
+        proposition_id (int): The ID of the proposition.
+
+    Returns:
+        dict: A dictionary with role IDs as keys and counts as values.
+    """
+    with open("participations.json", "r") as file:
+        data = json.load(file)
+
+    roles_id = data["roles"]
+    roles = []
+    for role_id in roles_id:
+        roles.append(ctx.guild.get_role(role_id))
+
+    role_counter = {}
+    for role in roles:
+        for member in role.members:
+            member_id = str(member.id)
+            if str(member.id) in data["participations"]:
+                if proposition_id in data["participations"][str(member.id)]:
+                    if role.id not in role_counter:
+                        role_counter[role.id] = 0
+                    role_counter[role.id] += 1
+
+    return role_counter
+
+
+def atelier_get_participation_count(member_id: int):
+    """
+    Get the count of participations for a member.
+
+    Args:
+        member_id (int): The ID of the member.
+
+    Returns:
+        int: The count of participations.
+    """
+    with open("participations.json", "r") as file:
+        data = json.load(file)
+
+    participations = data["participations"]
+    participation_ids = [
+        participation_id
+        for participation_ids_list in participations.values()
+        if participation_ids_list is not None
+        for participation_id in participation_ids_list
+    ]
+    return participation_ids.count(member_id)
+
+
+class MyViewAtelier(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=None)
+
+    @discord.ui.button(
+        label=data["button_label"], style=discord.ButtonStyle.red, custom_id="button"
+    )
+    async def button_callback(
+        self, interaction: discord.Interaction, button: discord.ui.Button
+    ):
+        """
+        Callback for the workshop button.
+
+        Args:
+            interaction (discord.Interaction): The interaction object.
+            button (discord.ui.Button): The button that was clicked.
+        """
+        with open("participations.json", "r") as file:
+            data = json.load(file)
+
+        if data["active"]:
+            user_id = str(interaction.user.id)
+            user_participations = data["participations"].get(user_id, [])
+
+            if not isinstance(user_participations, list):
+                user_participations = []
+
+            if len(user_participations) < data["max_inscription"]:
+                for proposition in data["propositions"]:
+                    if proposition["message_id"] == interaction.message.id:
+                        if proposition["id"] not in user_participations:
+                            for role in interaction.user.roles:
+                                if role.id in data["roles"]:
+                                    if (
+                                        atelier_get_participation_count(
+                                            proposition["id"]
+                                        )
+                                        < data["max_inscrits"]
+                                    ):
+                                        for role_member in atelier_get_role_count(
+                                            interaction, proposition["id"]
+                                        ):
+                                            if (
+                                                atelier_get_role_count(
+                                                    interaction, proposition["id"]
+                                                )[role_member]
+                                                >= data["max_inscrits_promo"]
+                                                and interaction.user.id == role_member
+                                            ):
+                                                await interaction.response.send_message(
+                                                    f"Le nombre maximum d'inscrits de votre promo a été atteint.",
+                                                    ephemeral=True,
+                                                )
+                                                return
+
+                                        confirmview = MyViewAtelierConfirm(
+                                            interaction, interaction.user
+                                        )
+                                        client.add_view(confirmview)
+
+                                        await interaction.response.send_message(
+                                            f"Souhaitez-vous valider votre inscription à l'atelier {proposition['titre']} ? Vous ne pourrez pas vous désinscrire après. (https://discord.com/channels/{interaction.guild.id}/{interaction.channel_id}/{interaction.message.id})",
+                                            view=confirmview,
+                                            ephemeral=True,
+                                        )
+
+                                        return
+
+                                    else:
+                                        await interaction.response.send_message(
+                                            "Le nombre d'inscrit autorisé a été atteint.",
+                                            ephemeral=True,
+                                        )
+                                        return
+                            await interaction.response.send_message(
+                                "Vos rôles ne vous permettent pas de vous inscrire à cet atelier.",
+                                ephemeral=True,
+                            )
+
+                        else:
+                            await interaction.response.send_message(
+                                "Vous avez déjà voté pour cette proposition.",
+                                ephemeral=True,
+                            )
+                            return
+
+                with open("participations.json", "w") as file:
+                    json.dump(data, file)
+
+                await atelier_result_in_time(interaction)
+            else:
+                await interaction.response.send_message(
+                    f"Vous avez déjà voté pour {data['max_inscription']} proposition{'s' if int(data['max_inscription'])>1 else ''}. Vous ne pouvez pas voter davantage.",
+                    ephemeral=True,
+                )
+        else:
+            await interaction.response.send_message(
+                "L'inscription n'est pas encore ouverte, mais vous pouvez prendre connaissance des ateliers proposés. Réessayez un peu plus tard.",
+                ephemeral=True,
+            )
+
+
+class MyViewAtelierConfirm(discord.ui.View):
+    def __init__(self, interactionMaster: discord.Interaction, author):
+        super().__init__(timeout=None)
+        self.interactionMaster = interactionMaster
+        self.author = author
+
+    proposition_id = None
+
+    @discord.ui.button(
+        label="Oui", style=discord.ButtonStyle.green, custom_id="confirm"
+    )
+    async def confirm_button_callback(
+        self, interaction: discord.Interaction, button: discord.ui.Button
+    ):
+        """
+        Callback for the confirm button.
+
+        Args:
+            interaction (discord.Interaction): The interaction object.
+            button (discord.ui.Button): The button that was clicked.
+        """
+        if interaction.user.id == self.author.id:
+            user_id = str(interaction.user.id)
+
+            with open("participations.json", "r") as file:
+                data = json.load(file)
+
+            if data["active"]:
+                message_id = int(
+                    interaction.message.content.split("https://discord.com/channels/")[
+                        1
+                    ].split("/")[2][:-1]
+                )
+
+                for proposition in data["propositions"]:
+                    if proposition["message_id"] == message_id:
+                        proposition_id = proposition["id"]
+                if user_id not in data["participations"]:
+                    data["participations"][user_id] = []
+
+                if proposition_id not in data["participations"].get(user_id, []):
+                    data["participations"][user_id].append(proposition_id)
+
+                    with open("participations.json", "w") as file:
+                        json.dump(data, file)
+
+                    if len(data["participations"][user_id]) >= int(
+                        data["max_inscription"]
+                    ):
+                        non_inscrit_role = discord.utils.get(
+                            interaction.guild.roles, name="Non Inscrit"
+                        )
+
+                        if non_inscrit_role:
+                            member = interaction.guild.get_member(int(user_id))
+                            if non_inscrit_role in member.roles:
+                                await member.remove_roles(non_inscrit_role)
+
+                    if (
+                        data["max_inscription"] - len(data["participations"][user_id])
+                        == 0
+                    ):
+                        for proposition in data["propositions"]:
+                            if proposition["id"] == proposition_id:
+                                nb_atelier_restant = data["max_inscription"] - len(
+                                    data["participations"][user_id]
+                                )
+                                await interaction.response.edit_message(
+                                    content=f"Vous avez confirmé votre inscription à l'atelier {proposition['titre']}.\nVous ne pouvez pas vous inscrire à un autre atelier. Merci de votre inscription.",
+                                    view=None,
+                                )
+                                await atelier_result_in_time(interaction)
+                                return
+
+                    else:
+                        for proposition in data["propositions"]:
+                            if proposition["id"] == proposition_id:
+                                nb_atelier_restant = data["max_inscription"] - len(
+                                    data["participations"][user_id]
+                                )
+                                await interaction.response.edit_message(
+                                    content=f"Vous avez confirmé votre inscription à l'atelier {proposition['titre']}.\nVous pouvez vous inscrire à {nb_atelier_restant} autre{'s' if nb_atelier_restant > 1 else ''} atelier{'s' if nb_atelier_restant > 1 else ''}.",
+                                    view=None,
+                                )
+                                await atelier_result_in_time(interaction)
+                else:
+                    await interaction.response.send_message(
+                        "Vous avez déjà voté pour cette proposition.", ephemeral=True
+                    )
+
+    @discord.ui.button(label="Non", style=discord.ButtonStyle.red, custom_id="cancel")
+    async def cancel_button_callback(
+        self, interaction: discord.Interaction, button: discord.ui.Button
+    ):
+        """
+        Callback for the cancel button.
+
+        Args:
+            interaction (discord.Interaction): The interaction object.
+            button (discord.ui.Button): The button that was clicked.
+        """
+        await interaction.response.edit_message(
+            content="Votre inscription a été annulée.", view=None
         )
 
 
 @tree.command(name="ping", description="Donne la latence du bot !")
 async def ping(ctx):
+    """
+    Get the bot's latency.
+
+    Args:
+        ctx: The context of the command.
+    """
     latency = round(client.latency * 1000)
     await ctx.response.send_message(
         content=f"Pong! Latence: {latency}ms", ephemeral=True
     )
-
-
-@ping.error
-async def ping_error(ctx, error):
-    if isinstance(error, discord.app_commands.errors.MissingPermissions):
-        await ctx.response.send_message(
-            content="Tu n'as pas la permission d'effectuer cette commande !",
-            ephemeral=True,
-        )
 
 
 @tree.command(
@@ -1045,6 +1685,17 @@ async def assign_role(
     role2: discord.Role = None,
     role3: discord.Role = None,
 ):
+    """
+    Assign a role to all people in the CSV file.
+
+    Args:
+        ctx: The context of the command.
+        fichier (discord.Attachment): The CSV file containing names.
+        supprimer (bool): Whether to remove the role from current members.
+        role (discord.Role): The role to assign.
+        role2 (discord.Role, optional): The second role to assign.
+        role3 (discord.Role, optional): The third role to assign.
+    """
     try:
         await ctx.response.send_message(content="J'y travaille...", ephemeral=True)
 
@@ -1182,30 +1833,50 @@ async def assign_role(
             not_found = ", ".join(not_found)
             NewMenberTxt = ", ".join([f"<@{m.id}>" for m in role.members])
 
+            too_much = False
+            if len(not_found + NewMenberTxt) > 1900:
+                too_much = True
+
             if supprimer == True:
-                await ctx.edit_original_response(
-                    content=(
-                        f"Role supprimé à : {OldMemberTxt}\n\nRole donné à : {NewMenberTxt}\n\nPersonnes non trouvée(s) : {not_found}"
+                if too_much == False:
+                    await ctx.edit_original_response(
+                        content=(
+                            f"Role supprimé à : {OldMemberTxt}\n\nRole donné à : {NewMenberTxt}\n\nPersonnes non trouvée(s) : {not_found}"
+                        )
                     )
-                )
-                user = client.get_user(ctx.user.id)
-                await user.send(
-                    content=(
-                        f"Role supprimé à : {OldMemberTxt}\n\nRole donné à : {NewMenberTxt}\n\nPersonnes non trouvée(s) : {not_found}"
+                    user = client.get_user(ctx.user.id)
+                    await user.send(
+                        content=(
+                            f"Role supprimé à : {OldMemberTxt}\n\nRole donné à : {NewMenberTxt}\n\nPersonnes non trouvée(s) : {not_found}"
+                        )
                     )
-                )
+                else:
+                    user = client.get_user(ctx.user.id)
+                    with open("message.txt", "w", encoding="utf-8") as file:
+                        file.write(
+                            f"Role supprimé à : {OldMemberTxt}\n\nRole donné à : {NewMenberTxt}\n\nPersonnes non trouvée(s) : {not_found}"
+                        )
+                    await user.send(file=discord.File("message.txt"))
             else:
-                await ctx.edit_original_response(
-                    content=(
-                        f"Role donné à : {NewMenberTxt}\n\nPersonnes non trouvée(s) : {not_found}"
+                if too_much == False:
+                    await ctx.edit_original_response(
+                        content=(
+                            f"Role donné à : {NewMenberTxt}\n\nPersonnes non trouvée(s) : {not_found}"
+                        )
                     )
-                )
-                user = client.get_user(ctx.user.id)
-                await user.send(
-                    content=(
-                        f"Role donné à : {NewMenberTxt}\n\nPersonnes non trouvée(s) : {not_found}"
+                    user = client.get_user(ctx.user.id)
+                    await user.send(
+                        content=(
+                            f"Role donné à : {NewMenberTxt}\n\nPersonnes non trouvée(s) : {not_found}"
+                        )
                     )
-                )
+                else:
+                    user = client.get_user(ctx.user.id)
+                    with open("message.txt", "w", encoding="utf-8") as file:
+                        file.write(
+                            f"Role donné à : {NewMenberTxt}\n\nPersonnes non trouvée(s) : {not_found}"
+                        )
+                    await user.send(file=discord.File("message.txt"))
 
         except Exception as e:
             send_mail(e, "assign_role")
@@ -1220,20 +1891,17 @@ async def assign_role(
         return
 
 
-@assign_role.error
-async def assign_role_error(ctx, error):
-    if isinstance(error, discord.app_commands.errors.MissingPermissions):
-        await ctx.response.send_message(
-            content="Tu n'as pas la permission d'effectuer cette commande !",
-            ephemeral=True,
-        )
-
-
 @tree.command(
     name="clear_dm",
     description="Supprime les messages envoyés par le bot en message privé. Utilisable en message privé uniquement.",
 )
 async def clear_messages(ctx):
+    """
+    Clear messages sent by the bot in private messages.
+
+    Args:
+        ctx: The context of the command.
+    """
     if not isinstance(ctx.channel, discord.DMChannel):
         await ctx.response.send_message(
             content="Cette commande n'est disponible qu'en messages privés.",
@@ -1260,6 +1928,15 @@ async def clear_messages(ctx):
 async def create_category(
     ctx, nom_categorie: str, role: discord.Role, role2: discord.Role = None
 ):
+    """
+    Create a basic category with channels and permissions.
+
+    Args:
+        ctx: The context of the command.
+        nom_categorie (str): The name of the category to create.
+        role (discord.Role): The role that will have access to the category.
+        role2 (discord.Role, optional): The second role that will have access to the category.
+    """
     try:
         server = ctx.guild
         name_cat = f" {nom_categorie.upper()} "
@@ -1356,7 +2033,7 @@ async def create_category(
                 speak=True,
             )
 
-            await general.clone(name="agenda")
+            await general.clone(name="docs-" + nom_categorie.lower())
 
             await server.create_text_channel(
                 name="pédago-" + nom_categorie.lower(), category=category_object
@@ -1394,16 +2071,6 @@ async def create_category(
         )
         return
 
-
-@create_category.error
-async def create_category_error(ctx, error):
-    if isinstance(error, discord.app_commands.errors.MissingPermissions):
-        await ctx.response.send_message(
-            content="Tu n'as pas la permission d'effectuer cette commande !",
-            ephemeral=True,
-        )
-
-
 @tree.command(
     name="creer_channel",
     description="Créer un channel dans une catégroei et lui donne les bonnes permissions !",
@@ -1413,6 +2080,14 @@ async def create_category_error(ctx, error):
     nom_channel="Nom du channel a créer", nom_categorie="Catégorie où créer le channel"
 )
 async def create_channel(ctx, nom_channel: str, nom_categorie: str):
+    """
+    Create a channel in a category and set the appropriate permissions.
+
+    Args:
+        ctx: The context of the command.
+        nom_channel (str): The name of the channel to create.
+        nom_categorie (str): The category where the channel will be created.
+    """
     try:
         await ctx.response.send_message(content="J'y travaille...", ephemeral=True)
 
@@ -1468,15 +2143,6 @@ async def create_channel(ctx, nom_channel: str, nom_categorie: str):
         return
 
 
-@create_channel.error
-async def create_channel_error(ctx, error):
-    if isinstance(error, discord.app_commands.errors.MissingPermissions):
-        await ctx.response.send_message(
-            content="Tu n'as pas la permission d'effectuer cette commande !",
-            ephemeral=True,
-        )
-
-
 @tree.command(
     name="supprimer_categorie",
     description="Supprime la catégorie ainsi que les channels qu'elle contient",
@@ -1484,6 +2150,13 @@ async def create_channel_error(ctx, error):
 @app_commands.checks.has_permissions(administrator=True)
 @app_commands.describe(nom_categorie="Nom de la catégorie a supprimer (sans les =)")
 async def delete_category(ctx, nom_categorie: str):
+    """
+    Delete a category and its channels.
+
+    Args:
+        ctx: The context of the command.
+        nom_categorie (str): The name of the category to delete.
+    """
     try:
         await ctx.response.send_message(content="J'y travaille...", ephemeral=True)
 
@@ -1547,16 +2220,6 @@ async def delete_category(ctx, nom_categorie: str):
         )
         return
 
-
-@delete_category.error
-async def delete_category_error(ctx, error):
-    if isinstance(error, discord.app_commands.errors.MissingPermissions):
-        await ctx.response.send_message(
-            content="Tu n'as pas la permission d'effectuer cette commande !",
-            ephemeral=True,
-        )
-
-
 @tree.command(
     name="supprimer_channel", description="Supprime un channel dans une catégorie"
 )
@@ -1566,6 +2229,14 @@ async def delete_category_error(ctx, error):
     nom_categorie="Catégorie dans lequel il est situé",
 )
 async def delete_channel(ctx, nom_channel: str, nom_categorie: str):
+    """
+    Delete a channel in a category.
+
+    Args:
+        ctx: The context of the command.
+        nom_channel (str): The name of the channel to delete.
+        nom_categorie (str): The category where the channel is located.
+    """
     try:
         await ctx.response.send_message(content="J'y travaille...", ephemeral=True)
 
@@ -1632,16 +2303,6 @@ async def delete_channel(ctx, nom_channel: str, nom_categorie: str):
         )
         return
 
-
-@delete_channel.error
-async def delete_channel_error(ctx, error):
-    if isinstance(error, discord.app_commands.errors.MissingPermissions):
-        await ctx.response.send_message(
-            content="Tu n'as pas la permission d'effectuer cette commande !",
-            ephemeral=True,
-        )
-
-
 @tree.command(
     name="supprimer_role",
     description="Supprime le role a toutes les personnes ayant ce role",
@@ -1652,6 +2313,14 @@ async def delete_channel_error(ctx, error):
     role_condition="Retirer le role seulement aux personnes ayant ce role",
 )
 async def supprime_role(ctx, role: discord.Role, role_condition: discord.Role = None):
+    """
+    Remove a role from all people who have it.
+
+    Args:
+        ctx: The context of the command.
+        role (discord.Role): The role to remove.
+        role_condition (discord.Role, optional): The role condition to check.
+    """
     try:
         await ctx.response.send_message(content="J'y travaille...", ephemeral=True)
         if role_condition != None:
@@ -1686,15 +2355,6 @@ async def supprime_role(ctx, role: discord.Role, role_condition: discord.Role = 
         return
 
 
-@supprime_role.error
-async def supprime_role_error(ctx, error):
-    if isinstance(error, discord.app_commands.errors.MissingPermissions):
-        await ctx.response.send_message(
-            content="Tu n'as pas la permission d'effectuer cette commande !",
-            ephemeral=True,
-        )
-
-
 @tree.command(
     name="transferer_categorie", description="Transferer une catégorie à un autre rôle"
 )
@@ -1716,6 +2376,18 @@ async def transfert_category(
     ancien_role: discord.Role,
     nouveau_role: discord.Role,
 ):
+    """
+    Transfer a category to another role.
+
+    Args:
+        ctx: The context of the command.
+        ancien_nom_categorie (str): The current name of the category to transfer.
+        nouveau_nom_categorie (str): The new name to give to the category.
+        ancien_nom_channel (str): The string to replace in the channel names.
+        nouveau_nom_channel (str): The new string to replace the old one in the channel names.
+        ancien_role (discord.Role): The role currently having access to the category.
+        nouveau_role (discord.Role): The new role that will have access to the category.
+    """
     try:
         await ctx.response.send_message(content="J'y travaille...", ephemeral=True)
 
@@ -1829,15 +2501,6 @@ async def transfert_category(
         return
 
 
-@transfert_category.error
-async def transfert_category_error(ctx, error):
-    if isinstance(error, discord.app_commands.errors.MissingPermissions):
-        await ctx.response.send_message(
-            content="Tu n'as pas la permission d'effectuer cette commande !",
-            ephemeral=True,
-        )
-
-
 @tree.command(
     name="transferer_role",
     description="Transfere un role a toutes les personnes ayant un autre role",
@@ -1851,6 +2514,15 @@ async def transfert_category_error(ctx, error):
 async def transfert_role(
     ctx, ancien_role: discord.Role, nouveau_role: discord.Role, supprimer: bool
 ):
+    """
+    Transfer a role to all people who have another role.
+
+    Args:
+        ctx: The context of the command.
+        ancien_role (discord.Role): The role that people currently have.
+        nouveau_role (discord.Role): The role to assign.
+        supprimer (bool): Whether to remove the current role used for transfer.
+    """
     try:
         await ctx.response.send_message(content="J'y travaille...", ephemeral=True)
 
@@ -1901,19 +2573,15 @@ async def transfert_role(
         )
         return
 
-
-@transfert_role.error
-async def transfert_role_error(ctx, error):
-    if isinstance(error, discord.app_commands.errors.MissingPermissions):
-        await ctx.response.send_message(
-            content="Tu n'as pas la permission d'effectuer cette commande !",
-            ephemeral=True,
-        )
-
-
 # @tree.command(name = "print_categories", description = "Affiche le nom de categorie")
 # @app_commands.checks.has_permissions(administrator=True)
 async def categories(ctx):
+    """
+    Print the names of categories.
+
+    Args:
+        ctx: The context of the command.
+    """
     try:
         try:
             await ctx.response.send_message(content="J'y travaille...", ephemeral=True)
@@ -1949,498 +2617,47 @@ async def categories(ctx):
         )
         return
 
-
-async def all_agenda_week_print():
-    await client.wait_until_ready()
-
-    for guild in client.guilds:
-        members_with_role = []
-        for member in guild.members:
-            if discord.utils.get(
-                member.roles, name="Apprenant IPI"
-            ) and not discord.utils.get(member.roles, name="Admin Serveur"):
-                members_with_role.append(member)
-        for channel in guild.channels:
-            if isinstance(channel, discord.TextChannel) and channel.name == "agenda":
-                await recur_agenda(channel, members_with_role)
-
-
-async def recur_agenda(channel: discord.TextChannel, members_with_role: list):
-    for member in members_with_role:
-        try:
-            with open("login_promo.json") as jsonFile:
-                LoginPromoJson = json.load(jsonFile)
-                jsonFile.close()
-            if (str(member.id) in LoginPromoJson) and channel.permissions_for(
-                member
-            ).view_channel:
-                max_attempts = 3
-
-                for attempt in range(max_attempts):
-                    if attempt > 0:
-                        print(f"Tentative {attempt + 1}...")
-
-                    date = (datetime.now() + timedelta(days=1)).strftime("%m/%d/%Y")
-                    username = cryptocode.decrypt(
-                        LoginPromoJson[str(member.id)]["login"], DataJson["CRYPT"]
-                    )
-
-                    url = DataJson["URL"]
-                    url += f"{username}&date={date}"
-
-                    browser = await pyppeteer.launch(executablePath=path_exe_chromium)
-                    page = await browser.newPage()
-                    await page.setViewport({"width": 1920, "height": 1080})
-
-                    await page.goto(url)
-                    await page.addStyleTag({"content": custom_css})
-
-                    await page.waitForSelector("body")
-
-                    page_source = await page.content()
-                    if (
-                        "Server Error in '/' Application." in page_source
-                        or "Erreur de parametres" in page_source
-                    ):
-                        print("Erreur détectée dans le HTML. Relance du script...")
-                        await browser.close()
-                    else:
-                        await page.screenshot({"path": f"Timeable{str(member.id)}.png"})
-                        await browser.close()
-                        break
-
-                image = Image.open(f"Timeable{str(member.id)}.png")
-                pixels_a_rogner = 66
-                largeur, hauteur = image.size
-                image_rognée = image.crop((0, pixels_a_rogner, largeur, hauteur))
-                image_rognée.save(f"Timeable{str(member.id)}.png")
-                image.close()
-
-                image_data = open(f"Timeable{str(member.id)}.png", "rb").read()
-                connection = sqlite3.connect("emploi_du_temps.db")
-                cursor = connection.cursor()
-
-                cursor.execute(
-                    "SELECT * FROM emploi_du_temps WHERE image_data = ? AND channel_id = ?",
-                    (
-                        image_data,
-                        channel.id,
-                    ),
-                )
-                existing_row = cursor.fetchone()
-
-                if existing_row:
-                    connection.commit()
-                    connection.close()
-                    return
-
-                else:
-                    cursor.execute(
-                        "DELETE FROM emploi_du_temps WHERE channel_id = ?",
-                        (channel.id,),
-                    )
-                    cursor.execute(
-                        "INSERT INTO emploi_du_temps (image_data, discord_id, channel_id) VALUES (?, ?, ?)",
-                        (
-                            image_data,
-                            member.id,
-                            channel.id,
-                        ),
-                    )
-                    connection.commit()
-                    connection.close()
-                    message_history = []
-                    async for msg in channel.history(limit=100):
-                        message_history.append(msg)
-
-                    index = 0
-                    for msg in message_history:
-                        if msg.author == client.user:
-                            await msg.delete()
-                            index += 1
-                        if index == 2:
-                            break
-
-                file = discord.File(f"Timeable{str(member.id)}.png")
-                await channel.send(file=file)
-                if os.path.exists(f"Timeable{str(member.id)}.png"):
-                    os.remove(f"Timeable{str(member.id)}.png")
-
-                browser = await pyppeteer.launch(executablePath=path_exe_chromium)
-                page = await browser.newPage()
-                await page.goto(url)
-
-                if "Pas de cours cette semaine" not in await page.content():
-                    case_elements = await page.querySelectorAll(
-                        '.Case:not([id="Apres"])'
-                    )
-
-                    events_list = []
-
-                    for element in case_elements:
-                        value_dict = {}
-
-                        left_in_percent = await page.evaluate(
-                            "(element) => parseFloat(element.style.left)", element
-                        )
-                        value_dict["left"] = left_in_percent
-
-                        prof_element = await element.querySelector(".TCProf > span")
-                        prof_text = await page.evaluate(
-                            "(element) => element.nextSibling.textContent", prof_element
-                        )
-                        value_dict["prof"] = prof_text.strip()
-
-                        name_element = await element.querySelector(".TCProf > br")
-                        name_text = await page.evaluate(
-                            "(element) => element.nextSibling.textContent", name_element
-                        )
-                        value_dict["name"] = name_text.strip()
-
-                        designation_element = await element.querySelector(
-                            ".TCase > tbody > tr:first-child > td:last-child"
-                        )
-                        designation_text = await page.evaluate(
-                            "(element) => element.textContent", designation_element
-                        )
-                        value_dict["designation"] = designation_text.strip()
-
-                        time_element = await element.querySelector(".TChdeb")
-                        time_text = await page.evaluate(
-                            "(element) => element.textContent", time_element
-                        )
-
-                        times = time_text.strip().split(" - ")
-                        value_dict["start_hour"], value_dict["start_min"] = times[
-                            0
-                        ].split(":")
-                        value_dict["end_hour"], value_dict["end_min"] = times[1].split(
-                            ":"
-                        )
-
-                        salle_element = await element.querySelector(".TCSalle")
-                        salle_text = await page.evaluate(
-                            "(element) => element.textContent", salle_element
-                        )
-                        value_dict["salle"] = salle_text.strip().replace("Salle:", "")
-
-                        events_list.append(value_dict)
-
-                    jour_elements = await page.querySelectorAll(".Jour")
-
-                    week_day_list = []
-
-                    current_year = datetime.now().year
-
-                    month_dict = {
-                        "janvier": 1,
-                        "février": 2,
-                        "mars": 3,
-                        "avril": 4,
-                        "mai": 5,
-                        "juin": 6,
-                        "juillet": 7,
-                        "août": 8,
-                        "septembre": 9,
-                        "octobre": 10,
-                        "novembre": 11,
-                        "décembre": 12,
-                    }
-
-                    for element in jour_elements:
-                        value_dict = {}
-
-                        left_in_percent = await page.evaluate(
-                            "(element) => parseFloat(element.style.left)", element
-                        )
-                        if 100 <= left_in_percent <= 200:
-                            value_dict["left"] = left_in_percent
-
-                            date_element = await element.querySelector(".TCJour")
-                            date_text = await page.evaluate(
-                                "(element) => element.textContent", date_element
-                            )
-
-                            date_parts = date_text.split(" ")
-                            day = date_parts[1]
-                            month_str = date_parts[2].lower()
-                            month = month_dict.get(month_str)
-                            if month_str == "janvier" and datetime.now().month == 12:
-                                current_year += 1
-                            date_formatted = f"{day}/{month}/{current_year}"
-                            value_dict["date"] = date_formatted
-
-                            week_day_list.append(value_dict)
-
-                    await browser.close()
-
-                    closest_left_values = []
-
-                    for item in events_list:
-                        left_value = item["left"]
-                        closest_left = min(
-                            week_day_list, key=lambda x: abs(x["left"] - left_value)
-                        )
-                        closest_left_values.append(closest_left["date"])
-
-                    cal = Calendar()
-                    cal.add("prodid", "-//My calendar//example.com//")
-                    cal.add("version", "2.0")
-
-                    for i in range(len(events_list)):
-                        event = Event()
-                        event.add("summary", events_list[i]["designation"])
-                        event.add(
-                            "description",
-                            f"{events_list[i]['name']}\n\nIntervenant: {events_list[i]['prof'].title()}",
-                        )
-
-                        event["location"] = events_list[i]["salle"]
-
-                        date_parts = closest_left_values[i].split("/")
-                        event_date = datetime(
-                            int(date_parts[2]), int(date_parts[1]), int(date_parts[0])
-                        )
-
-                        start_time = event_date.replace(
-                            hour=int(events_list[i]["start_hour"]),
-                            minute=int(events_list[i]["start_min"]),
-                        )
-                        end_time = event_date.replace(
-                            hour=int(events_list[i]["end_hour"]),
-                            minute=int(events_list[i]["end_min"]),
-                        )
-
-                        event.add("dtstart", start_time)
-                        event.add("dtend", end_time)
-
-                        cal.add_component(event)
-
-                    with open("agenda_promo.ics", "wb") as f:
-                        f.write(cal.to_ical())
-                    file = discord.File(f"agenda_promo.ics")
-                    await channel.send(file=file)
-                    if os.path.exists(f"agenda_promo.ics"):
-                        os.remove(f"agenda_promo.ics")
-        except Exception as e:
-            print(e)
-            logging.error(f'Error in command "agenda_recur": {e}', exc_info=True)
-            send_mail(e, "agenda_recur")
-            return
-
-
-@tree.command(
-    name="agenda_in_app",
-    description="Fichier agenda pour la date indiqué ou la semaine en cours",
-)
-@app_commands.describe(
-    date="Agenda a la date du : (au format jour/mois/année exemple : 05/04/2024)"
-)
-@app_commands.checks.has_any_role(
-    "Team Pedago IPI",
-    "Team Entreprise IPI",
-    "Team Communication IPI",
-    "Directrice IPI",
-    "Admin Serveur",
-    "Apprenant IPI",
-)
-async def agenda_file(ctx, date: str = ""):
-    try:
-        await ctx.response.send_message(content="J'y travaille...", ephemeral=True)
-        with open("login_promo.json") as jsonFile:
-            LoginPromoJson = json.load(jsonFile)
-            jsonFile.close()
-        if str(ctx.user.id) in LoginPromoJson:
-            if date == "":
-                date = datetime.now().strftime("%m/%d/%Y")
-            else:
-                try:
-                    date = (
-                        datetime.strptime(date, "%d/%m/%Y").date().strftime("%m/%d/%Y")
-                    )
-                except ValueError:
-                    await ctx.edit_original_response(
-                        content="Le format de la date fournit n'est pas valide la date doit etre le la forme jj/mm/aaaa"
-                    )
-                    return
-
-            username = cryptocode.decrypt(
-                LoginPromoJson[str(ctx.user.id)]["login"], DataJson["CRYPT"]
-            )
-
-            url = DataJson["URL"]
-            url += f"{username}&date={date}"
-
-            browser = await pyppeteer.launch(executablePath=path_exe_chromium)
-            page = await browser.newPage()
-            await page.goto(url)
-
-            case_elements = await page.querySelectorAll('.Case:not([id="Apres"])')
-
-            events_list = []
-
-            page_source = await page.content()
-            if "Pas de cours cette semaine" in page_source:
-                await ctx.edit_original_response(
-                    content="Tu n'as pas de cours cette semaine."
-                )
-                return
-
-            for element in case_elements:
-                value_dict = {}
-
-                left_in_percent = await page.evaluate(
-                    "(element) => parseFloat(element.style.left)", element
-                )
-                value_dict["left"] = left_in_percent
-
-                prof_element = await element.querySelector(".TCProf > span")
-                prof_text = await page.evaluate(
-                    "(element) => element.nextSibling.textContent", prof_element
-                )
-                value_dict["prof"] = prof_text.strip()
-
-                name_element = await element.querySelector(".TCProf > br")
-                name_text = await page.evaluate(
-                    "(element) => element.nextSibling.textContent", name_element
-                )
-                value_dict["name"] = name_text.strip()
-
-                designation_element = await element.querySelector(
-                    ".TCase > tbody > tr:first-child > td:last-child"
-                )
-                designation_text = await page.evaluate(
-                    "(element) => element.textContent", designation_element
-                )
-                value_dict["designation"] = designation_text.strip()
-
-                time_element = await element.querySelector(".TChdeb")
-                time_text = await page.evaluate(
-                    "(element) => element.textContent", time_element
-                )
-
-                times = time_text.strip().split(" - ")
-                value_dict["start_hour"], value_dict["start_min"] = times[0].split(":")
-                value_dict["end_hour"], value_dict["end_min"] = times[1].split(":")
-
-                salle_element = await element.querySelector(".TCSalle")
-                salle_text = await page.evaluate(
-                    "(element) => element.textContent", salle_element
-                )
-                value_dict["salle"] = salle_text.strip().replace("Salle:", "")
-
-                events_list.append(value_dict)
-
-            jour_elements = await page.querySelectorAll(".Jour")
-
-            week_day_list = []
-
-            current_year = datetime.now().year
-
-            month_dict = {
-                "janvier": 1,
-                "février": 2,
-                "mars": 3,
-                "avril": 4,
-                "mai": 5,
-                "juin": 6,
-                "juillet": 7,
-                "août": 8,
-                "septembre": 9,
-                "octobre": 10,
-                "novembre": 11,
-                "décembre": 12,
-            }
-
-            for element in jour_elements:
-                value_dict = {}
-
-                left_in_percent = await page.evaluate(
-                    "(element) => parseFloat(element.style.left)", element
-                )
-                if 100 <= left_in_percent <= 200:
-                    value_dict["left"] = left_in_percent
-
-                    date_element = await element.querySelector(".TCJour")
-                    date_text = await page.evaluate(
-                        "(element) => element.textContent", date_element
-                    )
-
-                    date_parts = date_text.split(" ")
-                    day = date_parts[1]
-                    month_str = date_parts[2].lower()
-                    month = month_dict.get(month_str)
-                    if month_str == "janvier" and datetime.now().month == 12:
-                        current_year += 1
-                    date_formatted = f"{day}/{month}/{current_year}"
-                    value_dict["date"] = date_formatted
-
-                    week_day_list.append(value_dict)
-
-            await browser.close()
-
-            closest_left_values = []
-
-            for item in events_list:
-                left_value = item["left"]
-                closest_left = min(
-                    week_day_list, key=lambda x: abs(x["left"] - left_value)
-                )
-                closest_left_values.append(closest_left["date"])
-
-            cal = Calendar()
-            cal.add("prodid", "-//My calendar//example.com//")
-            cal.add("version", "2.0")
-
-            for i in range(len(events_list)):
-                event = Event()
-                event.add("summary", events_list[i]["designation"])
-                event.add(
-                    "description",
-                    f"{events_list[i]['name']}\n\nIntervenant: {events_list[i]['prof'].title()}",
-                )
-
-                event["location"] = events_list[i]["salle"]
-
-                date_parts = closest_left_values[i].split("/")
-                event_date = datetime(
-                    int(date_parts[2]), int(date_parts[1]), int(date_parts[0])
-                )
-
-                start_time = event_date.replace(
-                    hour=int(events_list[i]["start_hour"]),
-                    minute=int(events_list[i]["start_min"]),
-                )
-                end_time = event_date.replace(
-                    hour=int(events_list[i]["end_hour"]),
-                    minute=int(events_list[i]["end_min"]),
-                )
-
-                event.add("dtstart", start_time)
-                event.add("dtend", end_time)
-
-                cal.add_component(event)
-
-            with open("agenda_promo.ics", "wb") as f:
-                f.write(cal.to_ical())
-            file = discord.File(f"agenda_promo.ics")
-            await ctx.edit_original_response(
-                content="Le fichier agenda à été envoyé par message"
-            )
-            user = client.get_user(ctx.user.id)
-            await user.send(file=file)
-            if os.path.exists(f"agenda_promo.ics"):
-                try:
-                    os.remove(f"agenda_promo.ics")
-                except:
-                    pass
-
-    except discord.app_commands.errors.MissingPermissions:
+@atelier_add_proposition.error
+@atelier_add_role.error
+@atelier_remove_role.error
+@atelier_list_role.error
+@atelier_modify_max_inscrits_promo.error
+@atelier_modify_max_inscrits.error
+@atelier_modify_max_inscription.error
+@atelier_modify_button_label.error
+@atelier_show_config.error
+@atelier_clear_all.error
+@atelier_show_inscrits.error
+@atelier_non_inscrit.error
+@atelier_result_in_time.error
+@activate_participation.error
+@deactivate_participation.error
+@atelier_relance.error
+@atelier_get_role_count.error
+@atelier_get_participation_count.error
+@ping.error
+@assign_role.error
+@clear_messages.error
+@create_category.error
+@create_channel.error
+@delete_category.error
+@delete_channel.error
+@supprime_role.error
+@transfert_category.error
+@transfert_role.error
+@categories.error
+async def error_handler(ctx, error):
+    """
+    Error handler for the create_category command.
+
+    Args:
+        ctx: The context of the command.
+        error: The error that occurred.
+    """
+    if isinstance(error, discord.app_commands.errors.MissingPermissions):
         await ctx.response.send_message(
             content="Tu n'as pas la permission d'effectuer cette commande !",
             ephemeral=True,
         )
-        return
-
 
 client.run(DataJson["DISCORD_TOKEN"])
