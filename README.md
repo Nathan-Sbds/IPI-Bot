@@ -36,7 +36,9 @@ Le bot possède 30 commandes :
 
 	- /creer_categorie [nom_categorie] [role] (role2)
 
-	- /creer_channel [nom_channel] [nom_categorie]
+	- /creer_channel [nom_channel] [type]
+
+    - /creer_multiple_channels [nom_channel] [nb_channel] [type]
 
 	- /ping
 	
@@ -438,28 +440,55 @@ Elle affichera ensuite un message indiquant que la catégorie a été créée po
 
 # /creer_channel
 
-Cette commande permet de créer un canal de discussion textuel dans une catégorie spécifiée et de définir des autorisations pour certains rôles dans ce canal.
+Cette commande permet de créer un canal de discussion textuel ou vocal dans une catégorie spécifiée et de définir des autorisations pour certains rôles dans ce canal.
 
 #### Exemple d'utilisation : 
 
-`/creer_channel [nom_channel] [nom_categorie]`
+`/creer_channel [nom_channel] [type]`
 
 #### Fonctionnalités :
-Crée un canal de discussion textuel dans une catégorie spécifiée.
-Définit des autorisations pour le rôle "Team Pedago IPI" dans le canal.
+Crée un canal de discussion textuel ou vocal dans une catégorie spécifiée.
+Définit des autorisations pour le rôle "Team Pedago IPI" dans le canal ainsi que pour la personne ayant éxecuté la commande.
 
 #### Paramètres :
-nom_channel : Le nom du canal à créer.
-nom_categorie : Le nom de la catégorie où créer le canal.
+nom_channel : Le nom du channel à créer.
+type : Le type de channel à créer sous forme de choix.
 
 #### Exemple d'utilisation en détail :
 
-`/creer_channel informations utiles B2 IFD`
+`/creer_channel informations-utiles Textuel`
 
-Cette commande va créer un canal de discussion textuel nommé "informations-utiles" dans la catégorie "========== B2 IFD ==========" et ayant les autorisations pour le(s) rôle(s) de base de la catégorie. 
+Cette commande va créer un canal de discussion textuel nommé "informations-utiles" dans la catégorie selectionnée dans le message suivant et ayant les autorisations pour le(s) rôle(s) de base de la catégorie ainsi que pour la personnes ayant executé la commande. 
 Elle affichera ensuite un message indiquant que le canal a été créé dans la catégorie spécifiée.
 
+
+
+
+# /creer_multiple_channels
+
+Cette commande permet de créer une série de canaux de discussion textuels ou vocaux dans une catégorie spécifiée et de définir des autorisations pour certains rôles dans ce canal.
+
+#### Exemple d'utilisation : 
+
+`/creer_multiple_channels [nom_channel] [nb_channel] [type]`
+
+#### Fonctionnalités :
+Crée plusieurs canaux de discussion textuels ou vocaux dans une catégorie spécifiée.
+Définit des autorisations pour le rôle "Team Pedago IPI" dans les canaux ainsi que pour la personne ayant éxecuté la commande.
+
+#### Paramètres :
+nom_channel : Le nom de base des channels à créer.
+nb_channel : Le nombre de channels à créer
+type : Le type de channel à créer sous forme de choix.
+
+#### Exemple d'utilisation en détail :
+
+`/creer_multiple_channels equipe 10 Vocal`
+
+Cette commande va créer 10 canaux de discussion vocaux nommés "equipe-1", "equipe-2", ..., "equipe-10" dans la catégorie selectionnée dans le message suivant et ayant les autorisations pour le(s) rôle(s) de base de la catégorie ainsi que pour la personnes ayant executé la commande. 
+Elle affichera ensuite un message indiquant que les canaux ont été créés dans la catégorie spécifiée.
  
+
 
 
 # /ping

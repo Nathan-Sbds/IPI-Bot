@@ -5,6 +5,8 @@ from PIL import Image
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
+from discord.gateway import DiscordClientWebSocketResponse
+
 # Configure logging
 logging.basicConfig(
     filename="bot_errors.log",
@@ -1865,7 +1867,7 @@ async def assign_role(
                         )
                     )
                     user = client.get_user(ctx.user.id)
-                    await user.send(
+                    await ctx.edit_original_response(
                         content=(
                             f"Role donné à : {NewMenberTxt}\n\nPersonnes non trouvée(s) : {not_found}"
                         )
@@ -2071,56 +2073,43 @@ async def create_category(
         )
         return
 
-@tree.command(
-    name="creer_channel",
-    description="Créer un channel dans une catégroei et lui donne les bonnes permissions !",
-)
-@app_commands.checks.has_permissions(manage_channels=True)
-@app_commands.describe(
-    nom_channel="Nom du channel a créer", nom_categorie="Catégorie où créer le channel"
-)
-async def create_channel(ctx, nom_channel: str, nom_categorie: str):
-    """
-    Create a channel in a category and set the appropriate permissions.
+class CategorySelectUniqueChannel(discord.ui.View):
+    def __init__(self, categories_select, ctx, type_channel, name):
+        super().__init__()
+        self.add_item(CategoryDropdownUniqueChannel(categories_select, ctx, type_channel, name))
 
-    Args:
-        ctx: The context of the command.
-        nom_channel (str): The name of the channel to create.
-        nom_categorie (str): The category where the channel will be created.
-    """
-    try:
-        await ctx.response.send_message(content="J'y travaille...", ephemeral=True)
+class CategoryDropdownUniqueChannel(discord.ui.Select):
+    def __init__(self, categories_select, ctx, type_channel, name):
+        options = [
+            discord.SelectOption(label=category.name.replace("=",""), value=category.name) for category in categories_select
+        ]
+        self.ctx = ctx
+        self.type_channel = type_channel
+        self.name = name
+        super().__init__(placeholder="Choisissez une catégorie...", options=options)
 
-        server = ctx.guild
 
-        name_cat = f" {nom_categorie.upper()} "
-        while len(name_cat) <= 27:
-            name_cat = f"={name_cat}="
+    async def callback(self, interaction: discord.Interaction):
+        category_object = discord.utils.get(
+                self.ctx.guild.categories, name=self.values[0]
+            )
+        try:
+            self.ctx.edit_original_response(content="J'y travaille...")
 
-        categories_with_name = []
-        for category in ctx.guild.categories:
-            if category.name == name_cat:
-                categories_with_name.append(category)
+            server = self.ctx.guild
 
-        if len(categories_with_name) > 1:
-            await ctx.edit_original_response(
-                content=(
-                    f"Il existe {len(categories_with_name)} catégories avec le nom {name_cat}. Merci de bien vouloir corriger cela !"
+            if self.type_channel == 0:
+                await server.create_voice_channel(
+                    name=self.name.lower(), category=category_object
                 )
-            )
+            else:
+                await server.create_text_channel(
+                    name=self.name.lower(), category=category_object
+                )
 
-        else:
-            category_object = discord.utils.get(
-                ctx.guild.categories, name=name_cat.upper()
-            )
-
-            await server.create_text_channel(
-                name=nom_channel.lower(), category=category_object
-            )
-
-            pedago = discord.utils.get(ctx.guild.roles, name="Team Pedago IPI")
+            pedago = discord.utils.get(self.ctx.guild.roles, name="Team Pedago IPI")
             await discord.utils.get(
-                ctx.guild.channels, name=nom_channel.lower()
+                self.ctx.guild.channels, name=self.name.lower()
             ).set_permissions(
                 target=pedago,
                 read_messages=True,
@@ -2129,18 +2118,182 @@ async def create_channel(ctx, nom_channel: str, nom_categorie: str):
                 speak=True,
             )
 
-            await ctx.edit_original_response(
-                content=(
-                    f"Channel {nom_channel.lower()} créé dans la catégorie {name_cat.upper()} !"
-                )
+            creator = discord.utils.get(self.ctx.guild.members, id=self.ctx.user.id)
+            await discord.utils.get(
+                self.ctx.guild.channels, name=self.name.lower()
+            ).set_permissions(
+                target=creator,
+                read_messages=True,
+                send_messages=True,
+                connect=True,
+                speak=True,
             )
+
+            await self.ctx.edit_original_response(
+                content=(
+                    f"Channel {self.name.lower()} créé !"
+                ), view=None
+            )
+        except Exception as e:
+            logging.error(f'Error in command "create_channel": {e}', exc_info=True)
+            print(e, "create_channel")
+            await self.ctx.edit_original_response(
+                content="Une erreur s'est produite lors de l'exécution de la commande.", view=None
+            )
+            return
+
+@tree.command(
+    name="creer_channel",
+    description="Créer un channel dans une catégorie et lui donne les bonnes permissions !",
+)
+@app_commands.checks.has_permissions(manage_channels=True)
+@app_commands.describe(
+    nom_channel="Nom du channel a créer"
+)
+@discord.app_commands.choices(
+    type=[
+        discord.app_commands.Choice(name="Vocal", value=0),
+        discord.app_commands.Choice(name="Textuel", value=1),
+    ]
+)
+async def create_channel(ctx, nom_channel: str, type: discord.app_commands.Choice[int]):
+    """
+    Create a channel in a category and set the appropriate permissions.
+
+    Args:
+        ctx: The context of the command.
+        nom_channel (str): The name of the channel to create.
+        type (discord.app_commands.Choice[int]): The type of channel to create.
+    """
+    try:
+        categories = [category for category in ctx.guild.categories if category.name != "== Bienvenue à l'IPI Lyon ==" and category.name != "======== STAFF IPI ========" and category.name != "======= League IPI =======" and category.name != "Défis join league" and category.name != "===== Espace Citoyen =====" and category.name != "=========== WOOHP ===========" and category.name != "====== Espace Admis ======" and category.name != "======== ALUMNI ========" and category.name != "===== IPI Apprenants ====="]
+        if not categories:
+            await ctx.response.send_message("Il n'y a aucune catégorie sur ce serveur.", ephemeral=True)
+            return
+
+        view = CategorySelectUniqueChannel(categories, ctx, type.value, nom_channel)
+        await ctx.response.send_message("Veuillez sélectionner une catégorie :", view=view, ephemeral=True)
+
     except Exception as e:
         logging.error(f'Error in command "create_channel": {e}', exc_info=True)
-        send_mail(e, "create_channel")
+        print(e, "create_channel")
         await ctx.edit_original_response(
             content="Une erreur s'est produite lors de l'exécution de la commande."
         )
         return
+
+
+class CategorySelectMultipleChannel(discord.ui.View):
+    def __init__(self, categories_select, ctx, type_channel, name, nb_channel):
+        super().__init__()
+        self.add_item(CategoryDropdownMultipleChannel(categories_select, ctx, type_channel, name, nb_channel))
+
+class CategoryDropdownMultipleChannel(discord.ui.Select):
+    def __init__(self, categories_select, ctx, type_channel, name, nb_channel):
+        options = [
+            discord.SelectOption(label=category.name.replace("=",""), value=category.name) for category in categories_select
+        ]
+        self.ctx = ctx
+        self.type_channel = type_channel
+        self.name = name
+        self.nb_channel = nb_channel
+        super().__init__(placeholder="Choisissez une catégorie...", options=options)
+
+
+    async def callback(self, interaction: discord.Interaction):
+        category_object = discord.utils.get(
+                self.ctx.guild.categories, name=self.values[0]
+            )
+        try:
+            self.ctx.edit_original_response(content="J'y travaille...")
+            server = self.ctx.guild
+            pedago = discord.utils.get(self.ctx.guild.roles, name="Team Pedago IPI")
+            creator = discord.utils.get(self.ctx.guild.members, id=self.ctx.user.id)
+
+            for i in range(self.nb_channel):
+                if self.type_channel == 0:
+                    await server.create_voice_channel(
+                        name=self.name.lower()+"-"+str(i+1), category=category_object
+                    )
+                else:
+                    await server.create_text_channel(
+                        name=self.name.lower()+"-"+str(i+1), category=category_object
+                    )
+
+                await discord.utils.get(
+                    self.ctx.guild.channels, name=self.name.lower()+"-"+str(i+1)
+                ).set_permissions(
+                    target=pedago,
+                    read_messages=True,
+                    send_messages=True,
+                    connect=True,
+                    speak=True,
+                )
+
+                await discord.utils.get(
+                    self.ctx.guild.channels, name=self.name.lower()+"-"+str(i+1)
+                ).set_permissions(
+                    target=creator,
+                    read_messages=True,
+                    send_messages=True,
+                    connect=True,
+                    speak=True,
+                )
+
+            await self.ctx.edit_original_response(
+                content=(
+                    f"Les channels ont été créés !"
+                ), view=None
+            )
+        except Exception as e:
+            logging.error(f'Error in command "create_channel": {e}', exc_info=True)
+            print(e, "create_channel")
+            await self.ctx.edit_original_response(
+                content="Une erreur s'est produite lors de l'exécution de la commande.", view=None
+            )
+            return
+
+@tree.command(
+    name="creer_multiple_channels",
+    description="Créer des channels dans une catégorie et lui donne les bonnes permissions !",
+)
+@app_commands.checks.has_permissions(manage_channels=True)
+@app_commands.describe(
+    nom_channel="Nom de base des channels a créer",
+    nb_channel="Nombre de channels a créer"
+)
+@discord.app_commands.choices(
+    type=[
+        discord.app_commands.Choice(name="Vocal", value=0),
+        discord.app_commands.Choice(name="Textuel", value=1),
+    ]
+)
+async def creer_multiple_channels(ctx, nom_channel: str, nb_channel:int , type: discord.app_commands.Choice[int]):
+    """
+    Create a channel in a category and set the appropriate permissions.
+
+    Args:
+        ctx: The context of the command.
+        nom_channel (str): The name of the channel to create.
+        type (discord.app_commands.Choice[int]): The type of channel to create.
+    """
+    try:
+        categories = [category for category in ctx.guild.categories if category.name != "== Bienvenue à l'IPI Lyon ==" and category.name != "======== STAFF IPI ========" and category.name != "======= League IPI =======" and category.name != "Défis join league" and category.name != "===== Espace Citoyen =====" and category.name != "=========== WOOHP ===========" and category.name != "====== Espace Admis ======" and category.name != "======== ALUMNI ========" and category.name != "===== IPI Apprenants ====="]
+        if not categories:
+            await ctx.response.send_message("Il n'y a aucune catégorie sur ce serveur.", ephemeral=True)
+            return
+
+        view = CategorySelectMultipleChannel(categories, ctx, type.value, nom_channel, nb_channel)
+        await ctx.response.send_message("Veuillez sélectionner une catégorie :", view=view, ephemeral=True)
+
+    except Exception as e:
+        logging.error(f'Error in command "create_channel": {e}', exc_info=True)
+        print(e, "create_channel")
+        await ctx.edit_original_response(
+            content="Une erreur s'est produite lors de l'exécution de la commande."
+        )
+        return
+
 
 
 @tree.command(
@@ -2171,10 +2324,16 @@ async def delete_category(ctx, nom_categorie: str):
             if category.name == name_cat:
                 categories_with_name.append(category)
 
-        if len(categories_with_name) > 1:
+        if len(categories_with_name) < 1:
             await ctx.edit_original_response(
                 content=(
-                    f"Il existe {len(categories_with_name)} catégories avec le nom {name_cat}. Merci de bien vouloir corriger cela !"
+                    f"Il n'existe pas de catégorie avec le nom {name_cat}. Merci de bien vouloir corriger cela !"
+                )
+            )
+        elif len(categories_with_name) > 1:
+            await ctx.edit_original_response(
+                content=(
+                    f"Il existe {len(categories_with_name)} catégories avec le nom {name_cat}. Cela n'est pas possible de définir laquelle supprimer. Merci de bien vouloir corriger cela !"
                 )
             )
 
@@ -2629,23 +2788,20 @@ async def categories(ctx):
 @atelier_clear_all.error
 @atelier_show_inscrits.error
 @atelier_non_inscrit.error
-@atelier_result_in_time.error
 @activate_participation.error
 @deactivate_participation.error
 @atelier_relance.error
-@atelier_get_role_count.error
-@atelier_get_participation_count.error
 @ping.error
 @assign_role.error
 @clear_messages.error
 @create_category.error
 @create_channel.error
+@creer_multiple_channels.error
 @delete_category.error
 @delete_channel.error
 @supprime_role.error
 @transfert_category.error
 @transfert_role.error
-@categories.error
 async def error_handler(ctx, error):
     """
     Error handler for the create_category command.
