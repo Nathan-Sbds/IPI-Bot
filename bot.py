@@ -2768,17 +2768,47 @@ async def search_logs(ctx: discord.Interaction, membre: discord.Member, date_deb
 
     found_messages = []
     
-    async for message in channel.history(after=start_dt, before=end_dt):
-        if len(message.embeds)>0:
+    index=0
+    async for message in channel.history(after=start_dt, before=end_dt, limit=10000):
+        index+=1
+        print(index)
+        if len(message.embeds) > 0:
             if str(membre.id) in message.embeds[0].description:
                 found_messages.append(message.embeds[0])
 
     if found_messages:
-        await ctx.edit_original_response(content=f"Messages contenant <@{membre.id}> entre **{date_debut}** et **{date_fin}**:\n\n" +
-                    "\n", embeds=found_messages)
+        pages = [found_messages[i:i + 10] for i in range(0, len(found_messages), 10)]
+        current_page = 0
 
+        class PaginationView(discord.ui.View):
+            def __init__(self, pages):
+                super().__init__(timeout=None)
+                self.pages = pages
+                self.current_page = 0
+                self.update_buttons()
+
+            @discord.ui.button(label="Précédent", style=discord.ButtonStyle.primary)
+            async def previous_page(self, interaction: discord.Interaction, button: discord.ui.Button):
+                if self.current_page > 0:
+                    self.current_page -= 1
+                    self.update_buttons()
+                    await interaction.response.edit_message(embeds=self.pages[self.current_page], view=self)
+
+            @discord.ui.button(label="Suivant", style=discord.ButtonStyle.primary)
+            async def next_page(self, interaction: discord.Interaction, button: discord.ui.Button):
+                if self.current_page < len(self.pages) - 1:
+                    self.current_page += 1
+                    self.update_buttons()
+                    await interaction.response.edit_message(embeds=self.pages[self.current_page], view=self)
+
+            def update_buttons(self):
+                self.children[0].disabled = self.current_page == 0
+                self.children[1].disabled = self.current_page == len(self.pages) - 1
+
+        view = PaginationView(pages)
+        await ctx.edit_original_response(content=f"Messages concernant <@{membre.id}> entre **{date_debut}** et **{date_fin}**:", embeds=pages[current_page], view=view)
     else:
-        await ctx.edit_original_response(content=f"Aucun message contenant <@{membre.id}> n'a été trouvé entre **{date_debut}** et **{date_fin}**.")
+        await ctx.edit_original_response(content=f"Aucun message concernant <@{membre.id}> n'a été trouvé entre **{date_debut}** et **{date_fin}**.")
 
 
 
