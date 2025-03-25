@@ -1159,8 +1159,7 @@ async def atelier_show_inscrits(ctx):
                 member = ctx.guild.get_member(int(voter))
                 if member:
                     proposition_voters += f"- {member.display_name}\n"
-                else:
-                    print(voter)
+
         embed.add_field(
             name=f"Atelier : {proposition_titre}",
             value=f"{proposition_voters}",
@@ -2748,7 +2747,8 @@ async def transfert_role(
     date_fin="Date de fin de la recherche (JJ/MM/AAAA HH:MM)",
 )
 async def search_logs(ctx: discord.Interaction, membre: discord.Member, date_debut: str, date_fin: str):
-    await ctx.response.send_message(content="J'y travaille...", ephemeral=True)
+    await ctx.response.defer(ephemeral=True)
+    await ctx.edit_original_response(content="J'y travaille...")
     
     channel = discord.utils.get(ctx.guild.text_channels, name="logs")
     if not channel:
@@ -2767,18 +2767,63 @@ async def search_logs(ctx: discord.Interaction, membre: discord.Member, date_deb
         return
 
     found_messages = []
-    
-    index=0
+    nb_messages = 0
+
+    await ctx.edit_original_response(content="Recupération des messages en cours. Cela peut prendre un certain temps...")
+
+    async for message in channel.history(after=start_dt, before=end_dt, limit=10000):
+        nb_messages += 1
+
+    index = 0
+    last_percentage = 0
+
+    frequency = round(1000 / nb_messages)
+    if frequency == 0:
+        frequency = 1
+
     async for message in channel.history(after=start_dt, before=end_dt, limit=10000):
         index+=1
-        print(index)
+        percentage = round((index / nb_messages) * 100)
+        if percentage != last_percentage and percentage % frequency == 0:
+            await ctx.edit_original_response(content=f"Analyse des messages en cours : {percentage}%")
+            last_percentage = percentage
         if len(message.embeds) > 0:
-            if str(membre.id) in message.embeds[0].description:
+            if message.embeds[0].author and membre.name == message.embeds[0].author.name:
                 found_messages.append(message.embeds[0])
 
+    def get_embed_length(embed: discord.Embed) -> int:
+        total = 0
+        if embed.title:
+            total += len(embed.title)
+        if embed.description:
+            total += len(embed.description)
+        if embed.footer and embed.footer.text:
+            total += len(embed.footer.text)
+        if embed.fields:
+            for field in embed.fields:
+                total += len(field.name) + len(field.value)
+        return total
+
     if found_messages:
-        pages = [found_messages[i:i + 10] for i in range(0, len(found_messages), 10)]
-        current_page = 0
+        pages = []
+        current_page = []
+        current_length = 0
+        limite_caracteres = 5500
+        max_embeds = 10
+
+        for embed in found_messages:
+            embed_length = get_embed_length(embed)
+            if (current_length + embed_length > limite_caracteres and current_page) or (len(current_page) >= max_embeds):
+                pages.append(current_page)
+                current_page = [embed]
+                current_length = embed_length
+            else:
+                current_page.append(embed)
+                current_length += embed_length
+        if current_page:
+            pages.append(current_page)
+        
+        current_page_index = 0
 
         class PaginationView(discord.ui.View):
             def __init__(self, pages):
@@ -2806,7 +2851,11 @@ async def search_logs(ctx: discord.Interaction, membre: discord.Member, date_deb
                 self.children[1].disabled = self.current_page == len(self.pages) - 1
 
         view = PaginationView(pages)
-        await ctx.edit_original_response(content=f"Messages concernant <@{membre.id}> entre **{date_debut}** et **{date_fin}**:", embeds=pages[current_page], view=view)
+        await ctx.edit_original_response(
+            content=f"Messages concernant <@{membre.id}> entre **{date_debut}** et **{date_fin}**:",
+            embeds=pages[current_page_index],
+            view=view
+        )
     else:
         await ctx.edit_original_response(content=f"Aucun message concernant <@{membre.id}> n'a été trouvé entre **{date_debut}** et **{date_fin}**.")
 
