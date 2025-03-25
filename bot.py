@@ -2732,6 +2732,56 @@ async def transfert_role(
         )
         return
 
+
+
+@tree.command(name="recherche_logs", description="Rechercher des messages dans les logs")
+@app_commands.checks.has_any_role(
+    "Team Pedago IPI",
+    "Team Entreprise IPI",
+    "Team Communication IPI",
+    "Directrice IPI",
+    "Admin Serveur",
+)
+@app_commands.describe(
+    membre="Membre à rechercher",
+    date_debut="Date de début de la recherche (JJ/MM/AAAA HH:MM)",
+    date_fin="Date de fin de la recherche (JJ/MM/AAAA HH:MM)",
+)
+async def search_logs(ctx: discord.Interaction, membre: discord.Member, date_debut: str, date_fin: str):
+    await ctx.response.send_message(content="J'y travaille...", ephemeral=True)
+    
+    channel = discord.utils.get(ctx.guild.text_channels, name="logs")
+    if not channel:
+        await ctx.edit_original_response(content="Le channel 'logs' n'existe pas.")
+        return
+
+    try:
+        start_dt = datetime.strptime(date_debut, "%d/%m/%Y %H:%M")
+        end_dt = datetime.strptime(date_fin, "%d/%m/%Y %H:%M")
+    except ValueError:
+        await ctx.edit_original_response(content="Format de date invalide. Utilisez le format `JJ/MM/AAAA HH:MM`.")
+        return
+    
+    if start_dt >= end_dt:
+        await ctx.edit_original_response(content="La date de début doit être antérieure à la date de fin.")
+        return
+
+    found_messages = []
+    
+    async for message in channel.history(after=start_dt, before=end_dt, limit=1000):
+        if len(message.embeds)>0:
+            if str(membre.id) in message.embeds[0].description:
+                found_messages.append(message.embeds[0])
+
+    if found_messages:
+        await ctx.edit_original_response(content=f"Messages contenant <@{membre.id}> entre **{date_debut}** et **{date_fin}**:\n\n" +
+                    "\n", embeds=found_messages)
+
+    else:
+        await ctx.edit_original_response(content=f"Aucun message contenant <@{membre.id}> n'a été trouvé entre **{date_debut}** et **{date_fin}**.")
+
+
+
 # @tree.command(name = "print_categories", description = "Affiche le nom de categorie")
 # @app_commands.checks.has_permissions(administrator=True)
 async def categories(ctx):
@@ -2802,6 +2852,7 @@ async def categories(ctx):
 @supprime_role.error
 @transfert_category.error
 @transfert_role.error
+@search_logs.error
 async def error_handler(ctx, error):
     """
     Error handler for the create_category command.
