@@ -2768,7 +2768,7 @@ async def search_logs(ctx: discord.Interaction, membre: discord.Member, date_deb
 
     found_messages = []
     
-    async for message in channel.history(after=start_dt, before=end_dt, limit=1000):
+    async for message in channel.history(after=start_dt, before=end_dt):
         if len(message.embeds)>0:
             if str(membre.id) in message.embeds[0].description:
                 found_messages.append(message.embeds[0])

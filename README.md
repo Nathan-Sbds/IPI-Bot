@@ -1,6 +1,6 @@
 Il est necessaire de mettre un Token à ce bot dans le data.json. A la premiere execution, le bot peut mettre une periode pouvant aller jusqu'a plusieurs dizaine de minutes avant d'afficher les commandes dans discord. Cela est normal lors de sa première execution, les éxecutions suivantes seront beaucoup plus rapide si aucun changement structurel n'est effectué.
 
-Le bot possède 30 commandes :
+Le bot possède 31 commandes :
 
 	- /assigner_role [fichier] [supprimer] [role] (role2) (role3)
 
@@ -41,6 +41,8 @@ Le bot possède 30 commandes :
     - /creer_multiple_channels [nom_channel] [nb_channel] [type]
 
 	- /ping
+
+	- /recherche_logs [membre] [date_debut] [date_fin] 
 	
 	- /supprimer_categorie [nom_categorie]
 
@@ -512,7 +514,33 @@ Cette commande n'accepte pas de paramètres supplémentaires.
 
 Cette commande va envoyer un message "Pong!" et afficher le temps de latence en millisecondes.
 
- 
+
+
+
+# /recherche_logs
+
+Cette commande permet de rechercher les logs du membre indiqué entre les dates données.
+
+#### Exemple d'utilisation : 
+
+`/recherche_logs [membre] [date_debut] [date_fin]`
+
+#### Fonctionnalités :
+Recherche les logs concernant un membre spécifique entre deux dates.
+Si les deux dates sont éloignées cette commande peut prendre un certain temps.
+
+#### Paramètres :
+membre : membre dont les logs doivent être récuperées.
+date_debut : Date à partir de laquelle les logs pour le membre seront analysées au format `jj/mm/aaaa hh:mm`.
+date_fin : Date à partir de laquelle les logs ne seront plus analysées au format `jj/mm/aaaa hh:mm`.
+
+#### Exemple d'utilisation en détail :
+
+`/recherche_logs @NathanSbds '05/04/2025 12:00' '31/12/2025 14:06'`
+
+Cette commande va rechercher tous les logs concernant @NathanSbds entre le 5 avril 2025 à 12h et le 31 décembre 2025 à 14h06 et afficher les résultats dans le canal actuel.
+
+
 
 
 # /supprimer_categorie
