@@ -1865,6 +1865,11 @@ async def assign_role(
                         file.write(
                             f"Role supprimé à : {OldMemberTxt}\n\nRole donné à : {NewMenberTxt}\n\nPersonnes non trouvée(s) : {not_found}"
                         )
+                    await ctx.edit_original_response(
+                        content=(
+                            "Le message est trop long, je vous l'ai envoyé en message privé !"
+                        )
+                    )
                     await user.send(file=discord.File("message.txt"))
                     os.remove("message.txt")
             else:
