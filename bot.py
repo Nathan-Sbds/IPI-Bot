@@ -1866,6 +1866,7 @@ async def assign_role(
                             f"Role supprimé à : {OldMemberTxt}\n\nRole donné à : {NewMenberTxt}\n\nPersonnes non trouvée(s) : {not_found}"
                         )
                     await user.send(file=discord.File("message.txt"))
+                    os.remove("message.txt")
             else:
                 if too_much == False:
                     await ctx.edit_original_response(
@@ -1886,6 +1887,7 @@ async def assign_role(
                             f"Role donné à : {NewMenberTxt}\n\nPersonnes non trouvée(s) : {not_found}"
                         )
                     await user.send(file=discord.File("message.txt"))
+                    os.remove("message.txt")
 
         except Exception as e:
             send_mail(e, "assign_role")
