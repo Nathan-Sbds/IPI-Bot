@@ -34,6 +34,14 @@ except FileNotFoundError:
     with open("secret_santa.json", "w") as file:
         json.dump(dataSecret, file)
 
+try:
+    with open("email_promo.json", "r") as file:
+        data = json.load(file)
+except FileNotFoundError:
+    data = {}
+    with open("email_promo.json", "w") as file:
+        json.dump(data, file)
+
 privateCommandsList = ["ping", "clear_dm"]
 
 def send_mail(errorBot, command):
@@ -1670,7 +1678,7 @@ async def ping(ctx):
     name="assigner_role",
     description="Donne le role ciblé a toutes les personnes dans le fichier .csv",
 )
-@app_commands.checks.has_permissions(administrator=True)
+@app_commands.checks.has_permissions(manage_roles=True)
 @app_commands.describe(
     fichier="Fichier contenant les nom et prenom dans deux colonnes séparées",
     supprimer="Faut-il supprimer les personnes ayant le role actuellement ?",
@@ -2259,7 +2267,7 @@ class CategoryDropdownMultipleChannel(discord.ui.Select):
 @app_commands.checks.has_permissions(manage_channels=True)
 @app_commands.describe(
     nom_channel="Nom de base des channels a créer",
-    nb_channel="Nombre de channels a créer"
+    nb_channel="Nombre de channels a créer inférieur à 20"
 )
 @discord.app_commands.choices(
     type=[
@@ -2277,6 +2285,12 @@ async def creer_multiple_channels(ctx, nom_channel: str, nb_channel:int , type: 
         type (discord.app_commands.Choice[int]): The type of channel to create.
     """
     try:
+        if nb_channel > 20:
+            await ctx.response.send_message("Le nombre de channels ne peut pas dépasser 20.", ephemeral=True)
+            return
+        if nb_channel < 1:
+            await ctx.response.send_message("Le nombre de channels doit être supérieur à 0.", ephemeral=True)
+            return
         categories = [category for category in ctx.guild.categories if category.name != "== Bienvenue à l'IPI Lyon ==" and category.name != "======== STAFF IPI ========" and category.name != "======= League IPI =======" and category.name != "Défis join league" and category.name != "===== Espace Citoyen =====" and category.name != "=========== WOOHP ===========" and category.name != "====== Espace Admis ======" and category.name != "======== ALUMNI ========" and category.name != "===== IPI Apprenants ====="]
         if not categories:
             await ctx.response.send_message("Il n'y a aucune catégorie sur ce serveur.", ephemeral=True)
@@ -2747,7 +2761,6 @@ async def transfert_role(
     date_fin="Date de fin de la recherche (JJ/MM/AAAA HH:MM)",
 )
 async def search_logs(ctx: discord.Interaction, membre: discord.Member, date_debut: str, date_fin: str):
-    await ctx.response.defer(ephemeral=True)
     await ctx.edit_original_response(content="J'y travaille...")
     
     channel = discord.utils.get(ctx.guild.text_channels, name="logs")
@@ -2904,6 +2917,111 @@ async def categories(ctx):
             ephemeral=True,
         )
         return
+    
+@tree.command(
+    name="definir_email_promo",
+    description="Définir l'email pour une promo",
+)
+@app_commands.checks.has_any_role(
+    "Team Pedago IPI",
+    "Team Entreprise IPI",
+    "Team Communication IPI",
+    "Directrice IPI",
+    "Admin Serveur",
+    "Team IPI",
+)
+@app_commands.describe(
+    email="Email à définir",
+    promo="Promo à définir",
+)
+async def definir_email_promo(ctx: discord.Interaction, email: str, promo: discord.Role):
+    """
+    Define the email for a specific promo.
+
+    Args:
+        ctx: The context of the command.
+        email (str): The email to set.
+        promo (discord.Role): The promo role to assign the email to.
+    """
+    try:
+        await ctx.response.send_message(content="J'y travaille...", ephemeral=True)
+        open ("email_promo.json", "w").write(
+            json.dumps(
+                {
+                    promo.id: email.lower(),
+                },
+                indent=4,
+                ensure_ascii=False,
+            )
+        )
+        await ctx.edit_original_response(
+            content=(
+                f"L'email `{email}` a été défini pour la promo {promo.name} !"
+            )
+        )
+    except Exception as e:
+        logging.error(f'Error in command "definir_email_promo": {e}', exc_info=True)
+        send_mail(e, "definir_email_promo")
+        await ctx.edit_original_response(
+            content="Une erreur s'est produite lors de l'exécution de la commande."
+        )
+        return
+    
+@tree.command(
+    name="obtenir_email_promo",
+    description="Obtenir l'email pour une promo",
+)
+@app_commands.checks.has_any_role(
+    "Team Pedago IPI",
+    "Team Entreprise IPI",
+    "Team Communication IPI",
+    "Directrice IPI",
+    "Admin Serveur",
+    "Team IPI",
+)
+@app_commands.describe(
+    promo="Promo pour laquelle obtenir l'email",
+)
+async def obtenir_email_promo(ctx: discord.Interaction, promo: discord.Role):
+    """
+    Get the email for a specific promo.
+
+    Args:
+        ctx: The context of the command.
+        promo (discord.Role): The promo role to get the email for.
+    """
+    await ctx.response.send_message(content="J'y travaille...", ephemeral=True)
+    try:
+        with open("email_promo.json", "r") as f:
+            data = json.load(f)
+            if str(promo.id) in data:
+                email = data[str(promo.id)]
+                await ctx.edit_original_response(
+                    content=(
+                        f"L'email pour la promo {promo.name} est : `{email}`"
+                    )
+                )
+            else:
+                await ctx.edit_original_response(
+                    content=(
+                        f"Aucun email défini pour la promo {promo.name}."
+                    )
+                )
+    except FileNotFoundError:
+        await ctx.edit_original_response(
+            content="Aucun email défini pour les promos."
+        )
+    except json.JSONDecodeError:
+        await ctx.edit_original_response(
+            content="Erreur lors de la lecture du fichier email_promo.json."
+        )
+    except Exception as e:
+        logging.error(f'Error in command "obtenir_email_promo": {e}', exc_info=True)
+        send_mail(e, "obtenir_email_promo")
+        await ctx.edit_original_response(
+            content="Une erreur s'est produite lors de l'exécution de la commande."
+        )
+        
 
 @atelier_add_proposition.error
 @atelier_add_role.error

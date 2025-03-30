@@ -1,6 +1,6 @@
 Il est necessaire de mettre un Token à ce bot dans le data.json. A la premiere execution, le bot peut mettre une periode pouvant aller jusqu'a plusieurs dizaine de minutes avant d'afficher les commandes dans discord. Cela est normal lors de sa première execution, les éxecutions suivantes seront beaucoup plus rapide si aucun changement structurel n'est effectué.
 
-Le bot possède 31 commandes :
+Le bot possède 33 commandes :
 
 	- /assigner_role [fichier] [supprimer] [role] (role2) (role3)
 
@@ -39,6 +39,10 @@ Le bot possède 31 commandes :
 	- /creer_channel [nom_channel] [type]
 
     - /creer_multiple_channels [nom_channel] [nb_channel] [type]
+
+	- /definir_email_promo [email] [promo]
+
+	- /obtenir_email_promo [promo]
 
 	- /ping
 
@@ -476,22 +480,60 @@ Cette commande permet de créer une série de canaux de discussion textuels ou v
 
 #### Fonctionnalités :
 Crée plusieurs canaux de discussion textuels ou vocaux dans une catégorie spécifiée.
-Définit des autorisations pour le rôle "Team Pedago IPI" dans les canaux ainsi que pour la personne ayant éxecuté la commande.
+Définit des autorisations pour le rôle "Team Pedago IPI" dans les canaux ainsi que pour la personne ayant exécuté la commande.
 
 #### Paramètres :
 nom_channel : Le nom de base des channels à créer.
-nb_channel : Le nombre de channels à créer
+nb_channel : Le nombre de channels à créer (limité à 20).
 type : Le type de channel à créer sous forme de choix.
 
 #### Exemple d'utilisation en détail :
 
 `/creer_multiple_channels equipe 10 Vocal`
 
-Cette commande va créer 10 canaux de discussion vocaux nommés "equipe-1", "equipe-2", ..., "equipe-10" dans la catégorie selectionnée dans le message suivant et ayant les autorisations pour le(s) rôle(s) de base de la catégorie ainsi que pour la personnes ayant executé la commande. 
+Cette commande va créer 10 canaux de discussion vocaux nommés "equipe-1", "equipe-2", ..., "equipe-10" dans la catégorie sélectionnée dans le message suivant et ayant les autorisations pour le(s) rôle(s) de base de la catégorie ainsi que pour la personne ayant exécuté la commande. 
 Elle affichera ensuite un message indiquant que les canaux ont été créés dans la catégorie spécifiée.
- 
 
+# /definir_email_promo
 
+Cette commande permet de définir un email pour une promotion spécifique.
+
+#### Exemple d'utilisation : 
+
+`/definir_email_promo [email] [promo]`
+
+#### Fonctionnalités :
+Associe un email à une promotion spécifique.
+
+#### Paramètres :
+email : L'email à associer à la promotion.
+promo : Le rôle représentant la promotion.
+
+#### Exemple d'utilisation en détail :
+
+`/definir_email_promo "cdev@ipi.com" @CDEV`
+
+Cette commande associera l'email "cdev@ipi.com" au rôle @CDEV.
+
+# /obtenir_email_promo
+
+Cette commande permet d'obtenir l'email associé à une promotion spécifique.
+
+#### Exemple d'utilisation : 
+
+`/obtenir_email_promo [promo]`
+
+#### Fonctionnalités :
+Récupère l'email associé à une promotion.
+
+#### Paramètres :
+promo : Le rôle représentant la promotion.
+
+#### Exemple d'utilisation en détail :
+
+`/obtenir_email_promo @CDEV`
+
+Cette commande affichera l'email associé au rôle @CDEV.
 
 # /ping
 
