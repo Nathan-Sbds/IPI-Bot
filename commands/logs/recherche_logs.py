@@ -102,8 +102,6 @@ async def setup(client, tree):
                     current_length += embed_length
             if current_page:
                 pages.append(current_page)
-            
-            print(f"Nombre de pages : {len(pages)}")
 
             current_page_index = 0
 

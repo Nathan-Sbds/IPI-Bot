@@ -1,7 +1,8 @@
 import discord
 from discord import app_commands
 import json, os
-from ..bot import folder_path
+
+folder_path = "./Attachments"
 
 async def setup(client, tree):
     @tree.command(
