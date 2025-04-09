@@ -46,7 +46,11 @@ async def setup(client, tree):
         index = 0
         last_percentage = 0
 
-        frequency = round(1000 / nb_messages)
+        if nb_messages == 0:
+            await ctx.edit_original_response(content="Aucun message trouvé dans la période spécifiée.")
+            return
+        else:
+            frequency = round(1000 / nb_messages)
         if frequency == 0:
             frequency = 1
 
