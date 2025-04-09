@@ -29,7 +29,7 @@ async def setup(client, tree):
         dataSecret = {"votes": {}, "images": [], "next_image_id": 1, "result_id": 0}
 
         # Save the data to the JSON file
-        with open("../../secret_santa.json", "w") as file:
+        with open("././secret_santa.json", "w") as file:
             json.dump(dataSecret, file)
 
         for file in os.listdir(folder_path):

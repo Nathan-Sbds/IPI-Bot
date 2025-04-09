@@ -30,7 +30,7 @@ async def setup(client, tree):
         """
         await ctx.response.send_message(content="J'y travaille...", ephemeral=True)
         try:
-            with open("..email_promo.json", "r") as f:
+            with open("././email_promo.json", "r") as f:
                 data = json.load(f)
                 if str(promo.id) in data:
                     email = data[str(promo.id)]
