@@ -1,6 +1,13 @@
-import discord
+import discord, logging
 from discord import app_commands
 from datetime import datetime
+
+logging.basicConfig(
+            filename="bot_errors.log",
+            level=logging.ERROR,
+            format="%(asctime)s [%(levelname)s]: %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S",
+        )
 
 async def setup(client, tree):
     @tree.command(name="recherche_logs", description="Rechercher des messages dans les logs")
@@ -96,6 +103,8 @@ async def setup(client, tree):
             if current_page:
                 pages.append(current_page)
             
+            print(f"Nombre de pages : {len(pages)}")
+
             current_page_index = 0
 
             class PaginationView(discord.ui.View):
@@ -132,8 +141,7 @@ async def setup(client, tree):
         else:
             await ctx.edit_original_response(content=f"Aucun message concernant <@{membre.id}> n'a été trouvé entre **{date_debut}** et **{date_fin}**.")
 
-        with open("./bot_errors.log", "w") as file:
-            file.write(len(found_messages))
+        
 
 
 if __name__ == '__main__':
