@@ -1,7 +1,7 @@
 import discord
 from discord import app_commands
 import json, os
-from ...bot import folder_path
+from ..bot import folder_path
 
 async def setup(client, tree):
     @tree.command(

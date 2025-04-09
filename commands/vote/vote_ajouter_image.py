@@ -1,9 +1,9 @@
 import discord
 from discord import app_commands
 import json, os
-from ...bot import folder_path
-from ...utils.vote_result_in_time import result_in_time
-from ...utils.ResultView import ResultView
+from ..bot import folder_path
+from ..utils.vote_result_in_time import result_in_time
+from ..utils.ResultView import ResultView
 
 
 

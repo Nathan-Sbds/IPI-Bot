@@ -132,6 +132,9 @@ async def setup(client, tree):
         else:
             await ctx.edit_original_response(content=f"Aucun message concernant <@{membre.id}> n'a été trouvé entre **{date_debut}** et **{date_fin}**.")
 
+        with open("./bot_errors.log", "w") as file:
+            file.write(len(found_messages))
+
 
 if __name__ == '__main__':
     pass
