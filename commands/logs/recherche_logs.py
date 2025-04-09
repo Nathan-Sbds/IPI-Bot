@@ -17,7 +17,7 @@ async def setup(client, tree):
         date_fin="Date de fin de la recherche (JJ/MM/AAAA HH:MM)",
     )
     async def search_logs(ctx: discord.Interaction, membre: discord.Member, date_debut: str, date_fin: str):
-        await ctx.edit_original_response(content="J'y travaille...")
+        await ctx.response.send_message(content="J'y travaille...", ephemeral=True)
         
         channel = discord.utils.get(ctx.guild.text_channels, name="logs")
         if not channel:
