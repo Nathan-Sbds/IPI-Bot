@@ -58,24 +58,24 @@ async def setup(client, tree):
             )
 
         if img1_vote > 0:
-            image_fond = Image.open("./Img/Podium.png").convert("RGBA")
-            couronne = Image.open("./Img/Couronne.png").convert("RGBA")
+            image_fond = Image.open("././Img/Podium.png").convert("RGBA")
+            couronne = Image.open("././Img/Couronne.png").convert("RGBA")
 
             # Ouvrir les trois images à coller
             if img1_name != "":
-                image1 = Image.open(f"./Attachments/{img3_name}").convert("RGBA")
+                image1 = Image.open(f"././Attachments/{img3_name}").convert("RGBA")
             else:
-                image1 = Image.open(f"./Img/Null.png").convert("RGBA")
+                image1 = Image.open(f"././Img/Null.png").convert("RGBA")
 
             if img2_name != "":
-                image2 = Image.open(f"./Attachments/{img2_name}").convert("RGBA")
+                image2 = Image.open(f"././Attachments/{img2_name}").convert("RGBA")
             else:
-                image2 = Image.open(f"./Img/Null.png").convert("RGBA")
+                image2 = Image.open(f"././Img/Null.png").convert("RGBA")
 
             if img3_name != "":
-                image3 = Image.open(f"./Attachments/{img1_name}").convert("RGBA")
+                image3 = Image.open(f"././Attachments/{img1_name}").convert("RGBA")
             else:
-                image3 = Image.open(f"./Img/Null.png").convert("RGBA")
+                image3 = Image.open(f"././Img/Null.png").convert("RGBA")
 
             # Redimensionner les trois images à une largeur de 545 tout en maintenant les proportions
             largeur_souhaitee = 545
@@ -98,7 +98,7 @@ async def setup(client, tree):
             image_fond.paste(image3, position3, image3)
             image_fond.paste(couronne, positionc, couronne)
 
-            image_fond.save("./Img/result_podium.png")
+            image_fond.save("././Img/result_podium.png")
 
             # Envoie l'embed avec les fichiers locaux sur le canal où la commande a été utilisée
             embed = discord.Embed(
@@ -108,7 +108,7 @@ async def setup(client, tree):
             embed.set_image(url=f"attachment://result_podium.png")
 
             await client.get_channel(ctx.channel_id).send(
-                embed=embed, file=discord.File("./Img/result_podium.png")
+                embed=embed, file=discord.File("././Img/result_podium.png")
             )
             await client.get_channel(ctx.channel_id).send(embed=embed_detail)
             await ctx.edit_original_response(

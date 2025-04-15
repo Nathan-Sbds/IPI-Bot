@@ -4,7 +4,7 @@ import json, os
 from utils.vote_result_in_time import result_in_time
 from utils.ResultView import ResultView
 
-folder_path = "./Attachments"
+folder_path = "././Attachments"
 
 async def setup(client, tree):
 
