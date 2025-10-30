@@ -1,15 +1,39 @@
 import sys
 import os
+import json
 import discord
 from discord import app_commands
-import json
 from utils.atelier_get_participation_count import atelier_get_participation_count
 from utils.atelier_get_role_count import atelier_get_role_count
 from utils.atelier_result_in_time import atelier_result_in_time
 from utils.AtelierConfirmView import MyViewAtelierConfirm
 
-with open("./participations.json", "r") as file:
-    data = json.load(file)
+
+DEFAULT_PARTICIPATIONS_DATA = {
+    "max_inscription": 2,
+    "max_inscrits": 14,
+    "max_inscrits_promo": 4,
+    "roles": [],
+    "propositions": [],
+    "participations": {},
+    "next_proposition_id": 1,
+    "result_id": 0,
+    "active": False,
+    "button_label": "S'inscrire à l'Atelier",
+}
+
+
+def load_participations_data():
+    try:
+        with open("./participations.json", "r") as file:
+            return json.load(file)
+    except (FileNotFoundError, json.JSONDecodeError):
+        with open("./participations.json", "w") as file:
+            json.dump(DEFAULT_PARTICIPATIONS_DATA, file)
+        return DEFAULT_PARTICIPATIONS_DATA.copy()
+
+
+data = load_participations_data()
 
 class AtelierView(discord.ui.View):
     def __init__(self, client):

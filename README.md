@@ -1,6 +1,6 @@
 Il est necessaire de mettre un Token à ce bot dans le data.json. A la premiere execution, le bot peut mettre une periode pouvant aller jusqu'a plusieurs dizaine de minutes avant d'afficher les commandes dans discord. Cela est normal lors de sa première execution, les éxecutions suivantes seront beaucoup plus rapide si aucun changement structurel n'est effectué.
 
-Le bot possède 33 commandes :
+Le bot possède 35 commandes :
 
 	- /assigner_role [fichier] [supprimer] [role] (role2) (role3)
 
@@ -36,9 +36,9 @@ Le bot possède 33 commandes :
 
 	- /creer_categorie [nom_categorie] [role] (role2)
 
-	- /creer_channel [nom_channel] [type]
+	- /creer_channel [nom_channel] [type] (limite_utilisateurs) (bitrate)
 
-    - /creer_multiple_channels [nom_channel] [nb_channel] [type]
+    - /creer_multiple_channels [nom_channel] [nb_channel] [type] (limite_utilisateurs) (bitrate)
 
 	- /definir_email_promo [email] [promo]
 
@@ -50,7 +50,9 @@ Le bot possède 33 commandes :
 	
 	- /supprimer_categorie [nom_categorie]
 
-	- /supprimer_channel [nom_channel] [nom_categorie]
+	- /supprimer_channel [prefix] [type]
+
+	- /supprimer_multiple_channels [prefix] [nb_channel] [type]
 
 	- /supprimer_role [role] (role2)
 
@@ -455,10 +457,15 @@ Cette commande permet de créer un canal de discussion textuel ou vocal dans une
 #### Fonctionnalités :
 Crée un canal de discussion textuel ou vocal dans une catégorie spécifiée.
 Définit des autorisations pour le rôle "Team Pedago IPI" dans le canal ainsi que pour la personne ayant éxecuté la commande.
+Permet de préciser une limite d'utilisateurs et un bitrate pour les channels vocaux.
 
 #### Paramètres :
 nom_channel : Le nom du channel à créer.
 type : Le type de channel à créer sous forme de choix.
+limite_utilisateurs : (Optionnel) limite d'utilisateurs pour un salon vocal (0 pour aucune limite, ignoré pour les channels textuels).
+bitrate : (Optionnel) débit binaire en kb pour un salon vocal (ignoré pour les channels textuels).
+
+⚠️ Ces deux paramètres concernent uniquement les salons vocaux. Ils sont ignorés lorsque le type "Textuel" est sélectionné.
 
 #### Exemple d'utilisation en détail :
 
@@ -481,11 +488,16 @@ Cette commande permet de créer une série de canaux de discussion textuels ou v
 #### Fonctionnalités :
 Crée plusieurs canaux de discussion textuels ou vocaux dans une catégorie spécifiée.
 Définit des autorisations pour le rôle "Team Pedago IPI" dans les canaux ainsi que pour la personne ayant exécuté la commande.
+Permet de préciser une limite d'utilisateurs et un bitrate pour les channels vocaux.
 
 #### Paramètres :
 nom_channel : Le nom de base des channels à créer.
 nb_channel : Le nombre de channels à créer (limité à 20).
 type : Le type de channel à créer sous forme de choix.
+limite_utilisateurs : (Optionnel) limite d'utilisateurs pour chaque salon vocal (0 pour aucune limite, ignoré pour les channels textuels).
+bitrate : (Optionnel) débit binaire en kb pour les salons vocaux (ignoré pour les channels textuels).
+
+⚠️ Ces deux paramètres concernent uniquement les salons vocaux. Ils sont ignorés lorsque le type "Textuel" est sélectionné.
 
 #### Exemple d'utilisation en détail :
 
@@ -612,27 +624,57 @@ Elle affichera ensuite un message indiquant que la catégorie a été supprimée
 
 # /supprimer_channel
 
-Cette commande permet de supprimer un canal de discussion textuel dans une catégorie spécifiée.
+Cette commande permet de supprimer rapidement un canal dont le nom commence par un préfixe donné dans une catégorie sélectionnée après exécution de la commande.
 
 #### Exemple d'utilisation : 
 
-`/supprimer_channel [nom_channel] [nom_categorie]`
+`/supprimer_channel [prefix] [type]`
 
 #### Fonctionnalités :
-Supprime un canal de discussion textuel dans une catégorie spécifiée.
+Affiche un menu déroulant des catégories autorisées pour sélectionner la cible de la suppression.
+Supprime le premier canal correspondant au préfixe fourni pour le type choisi (vocal ou textuel).
+Normalise automatiquement le préfixe en remplaçant les espaces par des tirets pour correspondre au format des noms de channels.
+Affiche un message récapitulatif listant le channel ciblé au format `<#id>` et propose les boutons "Valider" et "Annuler" avant la suppression définitive.
+Après confirmation, affiche un résumé final avec le nom initial du channel supprimé.
 
 #### Paramètres :
-nom_channel : Le nom du canal à supprimer.
-nom_categorie : Le nom de la catégorie où se trouve le canal.
+prefix : Le texte de départ recherché dans le nom du channel (les espaces sont convertis en tirets).
+type : Le type de channel à considérer ("Vocal" ou "Textuel").
 
 #### Exemple d'utilisation en détail :
 
-`/supprimer_channel informations_utiles B2 IFD`
+`/supprimer_channel "Atelier" Vocal`
 
-Cette commande va supprimer le canal de discussion textuel "informations_utile" dans la catégorie "========== B2 IFD ==========".
-Elle affichera ensuite un message indiquant que le canal a été supprimé de la catégorie spécifiée.
+Cette commande proposera une liste de catégories disponibles. Une fois la catégorie choisie, un message affichera le salon vocal ciblé sous forme de mention (par exemple `Atelier-1`) avec deux boutons "Valider" ou "Annuler". Après validation, un message final confirmera la suppression du channel en citant son nom d'origine.
 
- 
+
+
+# /supprimer_multiple_channels
+
+Cette commande permet de supprimer plusieurs channels partageant un même préfixe au sein d'une catégorie sélectionnée après l'exécution de la commande.
+
+#### Exemple d'utilisation : 
+
+`/supprimer_multiple_channels [prefix] [nb_channel] [type]`
+
+#### Fonctionnalités :
+Affiche un menu déroulant des catégories autorisées pour sélectionner la cible de la suppression.
+Supprime jusqu'au nombre indiqué de channels correspondant au préfixe fourni pour le type choisi (vocal ou textuel).
+Normalise automatiquement le préfixe en remplaçant les espaces par des tirets pour correspondre au format des noms de channels.
+Affiche un message récapitulatif listant tous les channels ciblés au format `<#id>` et propose les boutons "Valider" et "Annuler" avant la suppression définitive.
+Après confirmation, affiche un résumé final listant les noms initiaux des channels supprimés.
+
+#### Paramètres :
+prefix : Le texte de départ recherché dans le nom des channels (les espaces sont convertis en tirets).
+nb_channel : Le nombre maximum de channels à supprimer (compris entre 1 et 20).
+type : Le type de channel à considérer ("Vocal" ou "Textuel").
+
+#### Exemple d'utilisation en détail :
+
+`/supprimer_multiple_channels "Atelier" 5 Textuel`
+
+Cette commande proposera une liste de catégories disponibles. Après sélection, un message récapitulera jusqu'à cinq canaux textuels correspondants via leur mention (par exemple `Atelier-1`) et proposera deux boutons "Valider" ou "Annuler". Une fois validée, la commande confirmera les suppressions en listant les noms d'origine des channels concernés.
+
 
 
 # /supprimer_role
